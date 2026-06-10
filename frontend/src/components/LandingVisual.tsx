@@ -1,161 +1,273 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Activity } from 'lucide-react';
 
-/** Rotating 3D voice-wave torus — canvas projection, no external 3D lib. */
+/** Interactive Vocal Signal & Feature Analyzer component — replaces the 3D canvas torus */
 export function LandingVisual() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<number>(0);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const timeRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const path1Ref = useRef<SVGPathElement>(null);
+  const path2Ref = useRef<SVGPathElement>(null);
+  const path3Ref = useRef<SVGPathElement>(null);
+  const scanlineRef = useRef<SVGLineElement>(null);
+  const cursorDotRef = useRef<SVGCircleElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const phaseRef = useRef(0);
+  const frameRef = useRef(0);
+  const mouseRef = useRef({ x: 0, y: 0, clientX: 0, clientY: 0, active: false });
+
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }, []);
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Track mouse coordinates
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      mouseRef.current = { x, y, clientX: e.clientX, clientY: e.clientY, active: true };
 
-    const onMove = (e: MouseEvent) => {
-      const rect = wrap.getBoundingClientRect();
-      mouseRef.current = {
-        x: (e.clientX - rect.left) / rect.width - 0.5,
-        y: (e.clientY - rect.top) / rect.height - 0.5,
-      };
+      // Update vertical scanner line and cursor dot position in DOM directly for 60fps performance
+      if (scanlineRef.current) {
+        scanlineRef.current.setAttribute('x1', `${x}`);
+        scanlineRef.current.setAttribute('x2', `${x}`);
+        scanlineRef.current.style.opacity = '1';
+      }
+
+      // Estimate a point on the main wave path to place the cursor dot
+      const width = rect.width;
+      const height = rect.height;
+      const cy = height * 0.5;
+      const normX = x / width;
+      const phase = phaseRef.current;
+
+      // Calculate path1's y-coordinate at this X to make the dot stick to the wave
+      const baseWave = Math.sin(normX * 8 + phase) * 22;
+      const subHarmonic = Math.cos(normX * 16 - phase * 0.7) * 8;
+      let waveY = cy + baseWave + subHarmonic;
+
+      // Add mouse proximity warp (local ripple)
+      const ripple = Math.sin(normX * 120 + phase * 3.5) * 4;
+      waveY += ripple;
+
+      if (cursorDotRef.current) {
+        cursorDotRef.current.setAttribute('cx', `${x}`);
+        cursorDotRef.current.setAttribute('cy', `${waveY}`);
+        cursorDotRef.current.style.opacity = '1';
+      }
+
+      // Update tooltip content and position
+      if (tooltipRef.current) {
+        const estFreq = Math.round(85 + normX * 170); // simulated fundamental frequency (F0)
+        const estDb = (-12 - (y / height) * 18).toFixed(1); // simulated decibels
+        tooltipRef.current.style.transform = `translate(${x + 12}px, ${y - 48}px)`;
+        tooltipRef.current.style.opacity = '1';
+        tooltipRef.current.innerHTML = `
+          <div class="vocal-tooltip__title">f₀: ${estFreq} Hz</div>
+          <div class="vocal-tooltip__meta">amp: ${estDb} dB</div>
+        `;
+      }
     };
-    wrap.addEventListener('mousemove', onMove);
 
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const onMouseLeave = () => {
+      mouseRef.current.active = false;
+      if (scanlineRef.current) scanlineRef.current.style.opacity = '0';
+      if (cursorDotRef.current) cursorDotRef.current.style.opacity = '0';
+      if (tooltipRef.current) tooltipRef.current.style.opacity = '0';
     };
 
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(wrap);
+    container.addEventListener('mousemove', onMouseMove);
+    container.addEventListener('mouseleave', onMouseLeave);
 
-    const N = 220;
-    const pts: { u: number; v: number }[] = [];
-    for (let i = 0; i < N; i++) {
-      pts.push({ u: (i / N) * Math.PI * 2, v: ((i * 7) % N / N) * Math.PI * 2 });
-    }
+    return () => {
+      container.removeEventListener('mousemove', onMouseMove);
+      container.removeEventListener('mouseleave', onMouseLeave);
+    };
+  }, []);
 
+  useEffect(() => {
+    // Generate paths for three overlapping wave shapes
     const draw = () => {
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      if (!reducedMotion) timeRef.current += 0.012;
+      const container = containerRef.current;
+      if (!container) return;
 
-      const styles = getComputedStyle(document.documentElement);
-      const accent = styles.getPropertyValue('--color-accent').trim();
-      const paper = styles.getPropertyValue('--color-paper-2').trim();
-      const rule = styles.getPropertyValue('--color-rule').trim();
+      const w = container.clientWidth || 380;
+      const h = container.clientHeight || 280;
+      const cy = h * 0.5;
 
-      ctx.fillStyle = paper;
-      ctx.fillRect(0, 0, w, h);
-
-      const cx = w * 0.5 + mouseRef.current.x * 18;
-      const cy = h * 0.5 + mouseRef.current.y * 14;
-      const t = timeRef.current;
-      const R = Math.min(w, h) * 0.28;
-      const r = R * 0.38;
-
-      const projected: { x: number; y: number; z: number; i: number }[] = [];
-
-      for (let i = 0; i < pts.length; i++) {
-        const { u, v } = pts[i];
-        const wave = 1 + 0.12 * Math.sin(u * 5 + t * 2.4) * Math.cos(v * 3 + t * 1.6);
-        let x = (R + r * Math.cos(v)) * Math.cos(u) * wave;
-        let y = (R + r * Math.cos(v)) * Math.sin(u) * wave;
-        let z = r * Math.sin(v) * wave;
-
-        const cosY = Math.cos(t * 0.7);
-        const sinY = Math.sin(t * 0.7);
-        const cosX = Math.cos(t * 0.45);
-        const sinX = Math.sin(t * 0.45);
-
-        const x1 = x * cosY + z * sinY;
-        const z1 = -x * sinY + z * cosY;
-        const y2 = y * cosX - z1 * sinX;
-        const z2 = y * sinX + z1 * cosX;
-
-        const persp = 1 / (3.2 - z2 / R);
-        projected.push({
-          x: cx + x1 * persp,
-          y: cy + y2 * persp,
-          z: z2,
-          i,
-        });
+      if (!reducedMotion) {
+        phaseRef.current += 0.035;
       }
 
-      projected.sort((a, b) => a.z - b.z);
+      const phase = phaseRef.current;
+      const mouse = mouseRef.current;
 
-      for (const p of projected) {
-        const depth = (p.z + R) / (R * 2);
-        const alpha = 0.25 + depth * 0.65;
-        const radius = 1.2 + depth * 2.2;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = `oklch(58% 0.20 256 / ${alpha.toFixed(2)})`;
-        ctx.fill();
+      // Build SVG path strings
+      let d1 = '';
+      let d2 = '';
+      let d3 = '';
+
+      const steps = 60;
+      for (let i = 0; i <= steps; i++) {
+        const normX = i / steps;
+        const x = normX * w;
+
+        // Wave 1: Principal wave (electric cobalt)
+        let base1 = Math.sin(normX * 8 + phase) * 22;
+        let sub1 = Math.cos(normX * 16 - phase * 0.7) * 8;
+
+        // Wave 2: Harmonic wave (teal accent)
+        let base2 = Math.sin(normX * 11 - phase * 1.2) * 16;
+        let sub2 = Math.cos(normX * 22 + phase * 0.5) * 5;
+
+        // Wave 3: Background noise floor (gray/ink)
+        let base3 = Math.cos(normX * 5 + phase * 0.3) * 10;
+        let sub3 = Math.sin(normX * 13 + phase * 1.5) * 3;
+
+        // Proximity warp logic: if mouse is active, perturb waves near the mouse X
+        if (mouse.active) {
+          const mouseNormX = mouse.x / w;
+          const dist = Math.abs(normX - mouseNormX);
+          const influence = Math.exp(-Math.pow(dist * 7, 2)); // Gaussian envelope
+
+          if (influence > 0.01) {
+            // High frequency vocal jitter modulation
+            const ripple = Math.sin(normX * 120 + phase * 3.5) * 4;
+            base1 += ripple * influence;
+            base2 += ripple * 0.7 * influence;
+            base3 += ripple * 1.5 * influence;
+          }
+        }
+
+        const y1 = cy + base1 + sub1;
+        const y2 = cy + base2 + sub2;
+        const y3 = cy + base3 + sub3;
+
+        if (i === 0) {
+          d1 = `M ${x} ${y1}`;
+          d2 = `M ${x} ${y2}`;
+          d3 = `M ${x} ${y3}`;
+        } else {
+          d1 += ` L ${x} ${y1}`;
+          d2 += ` L ${x} ${y2}`;
+          d3 += ` L ${x} ${y3}`;
+        }
       }
 
-      ctx.beginPath();
-      for (let i = 0; i <= 64; i++) {
-        const u = (i / 64) * Math.PI * 2;
-        const wave = 1 + 0.18 * Math.sin(u * 8 + t * 3);
-        let x = R * Math.cos(u) * wave;
-        let y = R * Math.sin(u) * wave * 0.35;
-        let z = 0.25 * R * Math.sin(u * 4 + t * 2);
+      if (path1Ref.current) path1Ref.current.setAttribute('d', d1);
+      if (path2Ref.current) path2Ref.current.setAttribute('d', d2);
+      if (path3Ref.current) path3Ref.current.setAttribute('d', d3);
 
-        const cosY = Math.cos(t * 0.7);
-        const sinY = Math.sin(t * 0.7);
-        const x1 = x * cosY + z * sinY;
-        const z1 = -x * sinY + z * cosY;
-        const persp = 1 / (3.2 - z1 / R);
-        const px = cx + x1 * persp;
-        const py = cy + y * persp;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-      }
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.85;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      ctx.strokeStyle = rule;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + R * 0.55, R * 0.9, R * 0.22, 0, 0, Math.PI * 2);
-      ctx.globalAlpha = 0.35;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      if (!reducedMotion) frameRef.current = requestAnimationFrame(draw);
+      frameRef.current = requestAnimationFrame(draw);
     };
 
     draw();
 
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      ro.disconnect();
-      wrap.removeEventListener('mousemove', onMove);
-    };
-  }, []);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [reducedMotion]);
 
   return (
-    <div ref={wrapRef} className="landing-visual" aria-hidden="true">
-      <canvas ref={canvasRef} />
-      <div className="landing-visual__caption">
-        <span className="landing-visual__dot" />
-        Live voice embedding topology
+    <div ref={containerRef} className="vocal-analyzer" aria-hidden="true">
+      {/* 1. Terminal Header */}
+      <div className="vocal-analyzer__header">
+        <div className="vocal-analyzer__title-row">
+          <Activity className="vocal-analyzer__icon" />
+          <span className="vocal-analyzer__title">vocal.spectral_map_v2</span>
+        </div>
+        <div className="vocal-analyzer__status">
+          <span className="vocal-analyzer__led" />
+          <span>Nominal</span>
+        </div>
+      </div>
+
+      {/* 2. Parameters bar */}
+      <div className="vocal-analyzer__meta-bar">
+        <span>SR: 16,000 HZ</span>
+        <span>CHANNEL: CH_01</span>
+        <span>GAIN: AUTO</span>
+        <span>F0: STABLE</span>
+      </div>
+
+      {/* 3. Waveform display area */}
+      <div className="vocal-analyzer__wave-wrap">
+        {/* Glow backdrop grid */}
+        <div className="vocal-analyzer__grid-lines" />
+
+        {/* Dynamic SVG waves */}
+        <svg className="vocal-analyzer__svg" viewBox="0 0 100% 100%" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="cobaltGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="oklch(62% 0.15 220)" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="var(--color-accent)" stopOpacity="1" />
+              <stop offset="100%" stopColor="oklch(58% 0.20 256)" stopOpacity="0.4" />
+            </linearGradient>
+            <linearGradient id="tealGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="oklch(70% 0.12 170)" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="oklch(62% 0.14 200)" stopOpacity="0.8" />
+            </linearGradient>
+          </defs>
+
+          {/* Background voice envelope range */}
+          <rect x="0" y="25%" width="100%" height="50%" fill="oklch(58% 0.20 256 / 0.03)" />
+
+          {/* Paths */}
+          <path ref={path3Ref} fill="none" stroke="oklch(52% 0.012 256)" strokeWidth="1" strokeDasharray="3 3" opacity="0.35" />
+          <path ref={path2Ref} fill="none" stroke="url(#tealGradient)" strokeWidth="1.5" opacity="0.65" />
+          <path ref={path1Ref} fill="none" stroke="url(#cobaltGradient)" strokeWidth="2.5" />
+
+          {/* Interactive cursor lines/dots (DOM-manipulated) */}
+          <line ref={scanlineRef} x1="0" y1="0" x2="0" y2="100%" stroke="var(--color-accent)" strokeWidth="1" strokeDasharray="2 2" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
+          <circle ref={cursorDotRef} r="5" fill="var(--color-accent)" stroke="var(--color-paper)" strokeWidth="2" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
+        </svg>
+
+        {/* Floating tooltip */}
+        <div ref={tooltipRef} className="vocal-tooltip" style={{ opacity: 0 }} />
+
+        {/* Mini 2D PCA Cluster Map on top-right */}
+        <div className="vocal-mini-pca">
+          <span className="vocal-mini-pca__title">PCA EMBD</span>
+          <div className="vocal-mini-pca__points">
+            {/* Cluster dots */}
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--healthy" style={{ top: '35%', left: '25%' }} />
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--healthy" style={{ top: '55%', left: '35%' }} />
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--healthy" style={{ top: '25%', left: '45%' }} />
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--pathology" style={{ top: '65%', left: '65%' }} />
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--pathology" style={{ top: '45%', left: '75%' }} />
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--pathology" style={{ top: '75%', left: '80%' }} />
+            {/* Blinking user dot */}
+            <span className="vocal-mini-pca__dot vocal-mini-pca__dot--you" style={{ top: '42%', left: '52%' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Bottom feature mini-grid */}
+      <div className="vocal-analyzer__metrics">
+        <div className="vocal-mini-card">
+          <div className="vocal-mini-card__label">JITTER (LOCAL)</div>
+          <div className="vocal-mini-card__row">
+            <span className="vocal-mini-card__value">0.38%</span>
+            <span className="vocal-mini-card__badge vocal-mini-card__badge--ok">NOMINAL</span>
+          </div>
+        </div>
+        <div className="vocal-mini-card">
+          <div className="vocal-mini-card__label">SHIMMER (LOCAL)</div>
+          <div className="vocal-mini-card__row">
+            <span className="vocal-mini-card__value">2.42%</span>
+            <span className="vocal-mini-card__badge vocal-mini-card__badge--ok">NOMINAL</span>
+          </div>
+        </div>
+        <div className="vocal-mini-card">
+          <div className="vocal-mini-card__label">HNR (dB)</div>
+          <div className="vocal-mini-card__row">
+            <span className="vocal-mini-card__value">26.8 dB</span>
+            <span className="vocal-mini-card__badge vocal-mini-card__badge--ok">STABLE</span>
+          </div>
+        </div>
       </div>
     </div>
   );

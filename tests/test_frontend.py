@@ -19,9 +19,9 @@ def test_frontend_navigation():
             page.goto(url)
             # Wait for JS and resources to load completely
             page.wait_for_load_state("networkidle")
-            
             # 1. Verify landing page elements
             print("Verifying landing page...")
+            page.wait_for_timeout(1000)
             assert "VitaVoice" in page.title() or page.locator("text=VitaVoice").first.is_visible()
             assert page.locator("text=Vocal Biomarker AI").first.is_visible()
             
@@ -32,7 +32,7 @@ def test_frontend_navigation():
             
             # 2. Click assessment button
             print("Clicking 'Start Voice Assessment'...")
-            start_btn = page.locator("text=Start Voice Assessment")
+            start_btn = page.locator("#start-assessment-btn")
             assert start_btn.is_enabled()
             start_btn.click()
             
