@@ -282,7 +282,7 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
 
 @app.get("/api/v1/clusters")
 def get_reference_clusters():
-    csv_path = "datasets/pca_visualization_clusters.csv"
+    csv_path = os.path.join(settings.BASE_DIR, "datasets", "pca_visualization_clusters.csv")
     if not os.path.exists(csv_path):
         return {"loaded": False, "points": []}
         

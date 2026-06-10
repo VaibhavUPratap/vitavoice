@@ -1,0 +1,8 @@
+{
+  "date": "2026-06-11",
+  "font_stack": "Outfit + Inter + JetBrains Mono (index.html L19-24)",
+  "palette": "OKLCH Midnight atmospheric tokens (index.css)",
+  "motion": "motion-cut (no framer-motion)",
+  "spacing": "4pt Hallmark scale in index.css",
+  "framework": "Vite + React 19 + Tailwind v4"
+}
