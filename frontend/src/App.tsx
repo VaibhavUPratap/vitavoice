@@ -4,7 +4,7 @@ import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const LOADER_STEPS = [
   'Receiving WAV voice payload...',
