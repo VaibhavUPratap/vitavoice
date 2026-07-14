@@ -9,11 +9,12 @@ Welcome to the VitaVoice developer guide. This document details how to set up th
 ```text
 vitavoice/
 ├── backend/                  # FastAPI Application
-│   └── app/
-│       ├── config.py         # Application configurations
-│       ├── main.py           # Core FastAPI app & Middlewares
-│       ├── pdf_generator.py  # ReportLab PDF compiler
-│       └── report_generator.py # Clinical markdown reports
+│   ├── app/
+│   │   ├── config.py         # Application configurations
+│   │   ├── main.py           # Core FastAPI app & Middlewares
+│   │   ├── pdf_generator.py  # ReportLab PDF compiler
+│   │   └── report_generator.py # Clinical markdown reports
+│   └── requirements.txt      # Python dependencies
 ├── datasets/                 # Oxford & Raw Clinical Datasets
 ├── docs/                     # Technical & Ethical Documentation
 ├── frontend/                 # React SPA (Vite + TS)
@@ -29,8 +30,7 @@ vitavoice/
 │   ├── preprocessing/        # Resampling, gating noise reduction
 │   ├── training/             # Ensemble trainers & synthetic data
 │   └── checkpoints/          # Trained model binary joblibs
-├── tests/                    # Automation and unit tests
-└── requirements.txt          # Python dependencies
+└── tests/                    # Automation and unit tests
 ```
 
 ---
@@ -40,8 +40,9 @@ vitavoice/
 ### Backend Setup (Python)
 1. Initialize virtual environment:
    ```bash
+   cd backend
    python -m venv venv
-   .\venv\Scripts\activate
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate` (or .\venv\Scripts\activate)
    ```
 2. Install Python dependencies:
    ```bash
@@ -49,7 +50,7 @@ vitavoice/
    ```
 3. Run the development server:
    ```bash
-   python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+   python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
    ```
 
 ### Frontend Setup (Node.js)

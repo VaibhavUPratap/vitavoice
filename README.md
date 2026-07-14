@@ -74,6 +74,9 @@ To run the application, you need to start the FastAPI backend and the Vite front
 ### 1. Start the FastAPI Backend
 Initialize your virtual environment, install the dependencies, and run the development server:
 ```bash
+# Navigate to the backend directory
+cd backend
+
 # Set up a virtual environment (optional but recommended)
 python -m venv venv
 source venv/bin/activate  # On Windows use `venv\Scripts\activate`
@@ -82,7 +85,7 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 pip install -r requirements.txt
 
 # Run the development server
-python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 The backend API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
