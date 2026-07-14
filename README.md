@@ -67,17 +67,33 @@ By combining **clinical acoustic digital signal processing** with **modern trans
 
 ---
 
-## 🚀 Quick Start (Docker Compose)
+## 🚀 Quick Start (Running Locally)
 
-The fastest way to launch both the FastAPI backend and Vite frontend is via Docker Compose:
+To run the application, you need to start the FastAPI backend and the Vite frontend separately.
 
+### 1. Start the FastAPI Backend
+Initialize your virtual environment, install the dependencies, and run the development server:
 ```bash
-# Clone the repository and run:
-docker-compose up --build
-```
+# Set up a virtual environment (optional but recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 
-- **Frontend Dashboard**: [http://localhost:3000](http://localhost:3000)
-- **FastAPI Backend Server**: [http://localhost:8000](http://localhost:8000)
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the development server
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+The backend API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+### 2. Start the Vite Frontend
+In a new terminal window, navigate to the `frontend` directory, install packages, and run the Vite development server:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The frontend dashboard will be available at [http://localhost:5173](http://localhost:5173).
 
 ---
 

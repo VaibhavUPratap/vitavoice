@@ -30,8 +30,7 @@ vitavoice/
 │   ├── training/             # Ensemble trainers & synthetic data
 │   └── checkpoints/          # Trained model binary joblibs
 ├── tests/                    # Automation and unit tests
-├── requirements.txt          # Python dependencies
-└── docker-compose.yml        # Multi-container orchestration
+└── requirements.txt          # Python dependencies
 ```
 
 ---
