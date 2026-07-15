@@ -9,7 +9,7 @@ This model card details the model architecture, training configuration, performa
 - **Model Name**: VitaVoice-SVC-Ensemble-v2
 - **Model Type**: Hybrid Feature Fusion Ensemble (Clinical Acoustic + Deep Speech Representations)
 - **Primary Algorithm**: Support Vector Classifier (SVC) Ensemble
-- **Pretrained Neural Encoder**: `facebook/wav2vec2-base-960h` (Mean-pooled hidden state embeddings, 768-dimensions)
+- **Pretrained Neural Encoder**: `microsoft/wavlm-base` (Mean-pooled hidden state embeddings, 768-dimensions)
 - **Checkpoints Directory**: `ml/checkpoints/`
 - **Release Date**: June 2026
 
@@ -36,7 +36,7 @@ This model card details the model architecture, training configuration, performa
 
 The model operates on a fused **43-dimensional representation**:
 1. **23 Clinical Acoustic Metrics**: F0 mean, jitter metrics (RAP, PPQ, DDP), shimmer metrics (APQ, DDA), Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), Formants (F1-F3), and Zero-Crossing Rate.
-2. **20 Neural Embeddings**: A 768-dimensional Wav2Vec 2.0 vector compressed to 10 principal components via PCA/UMAP.
+2. **20 Neural Embeddings**: A 768-dimensional WavLM Base vector compressed to 10 principal components via PCA/UMAP.
 
 ---
 

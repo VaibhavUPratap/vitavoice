@@ -225,7 +225,7 @@ export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded
       <div className="embedding-card__head">
         <div>
           <p className="card__label" style={{ marginBottom: 'var(--space-2xs)' }}>Vocal embedding space</p>
-          <p className="embedding-card__sub">Wav2Vec 2.0 projected to 2D via PCA</p>
+          <p className="embedding-card__sub">WavLM Base projected to 2D via PCA</p>
         </div>
         <button
           type="button"

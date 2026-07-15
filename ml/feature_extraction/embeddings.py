@@ -3,51 +3,59 @@ import numpy as np
 import torch
 import librosa
 import joblib
-from transformers import Wav2Vec2Processor, Wav2Vec2Model
+from transformers import AutoFeatureExtractor, WavLMModel
 
 # Use CPU by default for inference to avoid GPU memory issues in development
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Cache model and processor globally so they aren't reloaded on every call
-_processor = None
+# Cache model and feature extractor globally so they aren't reloaded on every call
+_feature_extractor = None
 _model = None
 
-def get_wav2vec2_resources():
+def get_wavlm_resources():
     """
-    Lazy loads and caches the Wav2Vec2 model and processor.
+    Lazy loads and caches the WavLM model and feature extractor.
     """
-    global _processor, _model
-    if _processor is None or _model is None:
-        model_name = "facebook/wav2vec2-base-960h"
-        # Download and load processor and model
-        _processor = Wav2Vec2Processor.from_pretrained(model_name)
-        _model = Wav2Vec2Model.from_pretrained(model_name)
+    global _feature_extractor, _model
+    if _feature_extractor is None or _model is None:
+        model_name = "microsoft/wavlm-base"
+        # Download and load feature extractor and model
+        _feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+        _model = WavLMModel.from_pretrained(model_name)
         _model.to(device)
         _model.eval()
-    return _processor, _model
+    return _feature_extractor, _model
 
 def extract_wav2vec2_embeddings(y, sr):
     """
-    Extracts the 768-dimensional embedding from the preprocessed audio waveform.
+    Extracts the 768-dimensional embedding from the preprocessed audio waveform
+    using WavLM Base (microsoft/wavlm-base).
+
+    The function name is preserved for backward compatibility with all callers
+    (data loaders, inference pipeline). The output shape and semantics are
+    identical to the former Wav2Vec 2.0 implementation:
+
+        Audio -> 16kHz mono -> Feature Extractor -> WavLM Encoder
+        -> Last Hidden State -> Mean Pooling -> 768-dimensional embedding
     """
     if sr != 16000:
         y = librosa.resample(y, orig_sr=sr, target_sr=16000)
         sr = 16000
-        
-    processor, model = get_wav2vec2_resources()
-    
-    # Process audio
-    inputs = processor(y, sampling_rate=sr, return_tensors="pt", padding=True)
+
+    feature_extractor, model = get_wavlm_resources()
+
+    # Process audio — WavLM uses the same 16kHz mono convention as Wav2Vec 2.0
+    inputs = feature_extractor(y, sampling_rate=sr, return_tensors="pt", padding=True)
     inputs = {k: v.to(device) for k, v in inputs.items()}
-    
+
     with torch.no_grad():
         outputs = model(**inputs)
         # Extract last hidden state, shape [batch_size, sequence_length, 768]
         last_hidden_state = outputs.last_hidden_state
-        
+
         # Mean pool over sequence length to get utterance-level embedding, shape [768]
         embedding = torch.mean(last_hidden_state, dim=1).squeeze().cpu().numpy()
-        
+
     return embedding
 
 def load_pca_projection(pca_path="ml/checkpoints/pca_model.joblib"):
@@ -65,7 +73,7 @@ def project_embedding_2d(embedding, pca_model=None):
     """
     if pca_model is None:
         pca_model = load_pca_projection()
-        
+
     if pca_model is not None:
         # Project using loaded PCA
         coords = pca_model.transform(embedding.reshape(1, -1))[0]

@@ -73,7 +73,7 @@ class VitaVoicePredictor:
         # Align clinical features according to trained feature list
         cli_vec = np.array([cli_feats[k] for k in self.feature_names])
         
-        # 3. Extract Wav2Vec 2.0 embeddings
+        # 3. Extract WavLM Base embeddings
         w2v_emb = extract_wav2vec2_embeddings(y, sr)
         
         # 4. Dimensionality reduction of embeddings (using PCA or UMAP)

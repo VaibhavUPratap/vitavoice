@@ -68,7 +68,7 @@ class OxfordDatasetLoader(BaseDatasetLoader):
                 
                 cli_vec = np.array([cli_feats[k] for k in sorted_keys])
                 
-                # Extract Wav2Vec 2.0 embeddings
+                # Extract WavLM Base embeddings
                 w2v_emb = extract_wav2vec2_embeddings(y, sr)
                 
                 clinical_features.append(cli_vec)
@@ -88,8 +88,8 @@ class OxfordDatasetLoader(BaseDatasetLoader):
         X_w2v = np.array(w2v_embeddings)
         y = np.array(labels)
         
-        # Combine clinical features and full Wav2Vec embeddings
-        # (We will apply PCA to the Wav2Vec component during training)
+        # Combine clinical features and full WavLM embeddings
+        # (We will apply PCA to the WavLM component during training)
         X_dict = {
             'X_cli': X_cli,
             'X_w2v': X_w2v,

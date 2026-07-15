@@ -74,7 +74,7 @@ class RealAudioDatasetLoader(BaseDatasetLoader):
                     
                 cli_vec = np.array([cli_feats[k] for k in sorted_keys])
                 
-                # Extract Wav2Vec 2.0 representations
+                # Extract WavLM Base representations
                 w2v_emb = extract_wav2vec2_embeddings(y, sr)
                 
                 clinical_features.append(cli_vec)

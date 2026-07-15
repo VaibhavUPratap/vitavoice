@@ -27,7 +27,7 @@ graph TD
             PP -->|Clean 16kHz WAV| FE_EXT[3.2 Feature Extraction]
             
             FE_EXT -->|Acoustic Biomarkers| F_CLI[Clinical Feature Set]
-            FE_EXT -->|Speech Foundation Model| F_EMB[Wav2Vec 2.0 Embeddings]
+            FE_EXT -->|Speech Foundation Model| F_EMB[WavLM Base Embeddings]
             
             F_CLI & F_EMB -->|3.3 Fused Concatenation| CONCAT[Scaled Concatenated Feature Map]
             CONCAT -->|3.4 SVM Ensemble| CLF[Classifier Model]
@@ -67,7 +67,7 @@ VitaVoice uses a **hybrid ensemble architecture** combining interpretable acoust
 
 ### Feature Space Definition
 - **Clinical Acoustic Biomarkers**: Fundamental frequency ($F0$), local jitter (frequency stability), local shimmer (amplitude stability), Harmonics-to-Noise Ratio (HNR), Formants ($F1$-$F3$), RMS energy, MFCCs ($1$-$13$), and zero-crossing rate.
-- **Deep Speech Representations**: A 768-dimensional contextual embedding extracted from the mean-pooled last hidden state of a pretrained **Wav2Vec 2.0** model.
+- **Deep Speech Representations**: A 768-dimensional contextual embedding extracted from the mean-pooled last hidden state of a pretrained **WavLM Base** model (`microsoft/wavlm-base`).
 
 ### Classification & Explainability
 - **Feature Fusion**: Clinical biomarkers and UMAP/PCA-reduced neural embeddings are concatenated and scaled.

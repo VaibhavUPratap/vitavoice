@@ -14,7 +14,7 @@ const LOADER_STEPS = [
   'Calculating cycle-by-cycle pitch Jitter...',
   'Extracting cycle-by-cycle amplitude Shimmer...',
   'Computing Harmonics-to-Noise Ratio (HNR)...',
-  'Loading Wav2Vec 2.0 speech transformer...',
+  'Loading WavLM Base speech transformer...',
   'Extracting 768-dimensional neural embeddings...',
   'Applying PCA dimensionality reduction...',
   'Concatenating hybrid biomarker feature maps...',
@@ -262,7 +262,7 @@ function App() {
                   Screen health risks through sustained vowel analysis.
                 </h1>
                 <p className="landing__lede">
-                  VitaVoice combines clinical perturbation metrics with Wav2Vec&nbsp;2.0
+                  VitaVoice combines clinical perturbation metrics with WavLM&nbsp;Base
                   embeddings to surface voice instabilities associated with neurological conditions.
                 </p>
                 <div className="landing__cta-row">
@@ -302,7 +302,7 @@ function App() {
                   </div>
                   <div className="stat-block">
                     <p className="stat-block__label">Encoder</p>
-                    <p className="stat-block__value">Wav2Vec 2.0</p>
+                    <p className="stat-block__value">WavLM Base</p>
                   </div>
                 </div>
               </div>
