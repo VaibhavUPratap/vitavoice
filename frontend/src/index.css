@@ -93,7 +93,7 @@ em, i, cite, address, var, dfn {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-block: var(--space-lg) var(--space-xl);
+  padding-block: var(--space-lg) 0;
 }
 
 .main-content--results {
@@ -104,17 +104,24 @@ em, i, cite, address, var, dfn {
 
 /* ─── Nav Archetype N5: Floating Pill ─── */
 .nav-bar {
-  position: sticky; /* Restored sticky flow */
+  position: sticky;
   top: 1rem;
   z-index: 100;
-  background: oklch(17% 0.016 265 / 0.85);
+  background: oklch(17% 0.016 265 / 0.88);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--color-rule-2) !important;
   border-radius: var(--radius-pill);
-  max-width: min(calc(100% - 2rem), 96rem); /* Extended sideways to match 96rem page-max */
+  max-width: min(calc(100vw - 2rem), 96rem);
   margin-inline: auto;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
   transition: all var(--dur-short) var(--ease-out);
+}
+
+[data-theme="light"] .nav-bar {
+  background: oklch(97% 0.006 262 / 0.88);
+  box-shadow: 0 4px 24px oklch(14% 0.016 265 / 0.12);
+  border-color: var(--color-rule) !important;
 }
 
 .nav-bar__inner {
@@ -196,6 +203,35 @@ em, i, cite, address, var, dfn {
   display: flex;
   align-items: center;
   gap: var(--space-2xs);
+}
+
+/* ─── Theme Toggle ─── */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-rule);
+  background: var(--color-paper-2);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  transition: background var(--dur-short) var(--ease-out),
+              color var(--dur-short) var(--ease-out),
+              border-color var(--dur-short) var(--ease-out),
+              transform var(--dur-short) var(--ease-out);
+  flex-shrink: 0;
+}
+.theme-toggle:hover {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+  border-color: var(--color-rule-2);
+  transform: rotate(12deg) scale(1.08);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ─── Badges ─── */
@@ -333,7 +369,7 @@ em, i, cite, address, var, dfn {
 .landing {
   width: 100%;
   max-width: var(--page-max);
-  padding-block: var(--space-xs) var(--space-2xl);
+  padding-block: var(--space-xs) var(--space-lg);
   background:
     linear-gradient(var(--rule-blueprint) 1px, transparent 1px) 0 0 / 48px 48px,
     linear-gradient(90deg, var(--rule-blueprint) 1px, transparent 1px) 0 0 / 48px 48px,
@@ -386,7 +422,7 @@ em, i, cite, address, var, dfn {
 }
 
 .landing__stat-unit {
-  font-size: 0.4em;
+  font-size: var(--text-sm);
   color: var(--color-ink-3);
   font-family: var(--font-body);
 }
@@ -432,7 +468,7 @@ em, i, cite, address, var, dfn {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xs);
-  align-items: center;
+  align-items: stretch;
   margin-bottom: var(--space-lg);
 }
 
@@ -446,9 +482,10 @@ em, i, cite, address, var, dfn {
 
 .landing__stats-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-sm);
   padding-top: var(--space-md);
+  margin-bottom: var(--space-lg);
   border-top: var(--rule-hair) solid var(--color-rule);
 }
 
@@ -480,13 +517,15 @@ em, i, cite, address, var, dfn {
   grid-template-columns: auto 1fr auto;
   gap: var(--space-md);
   align-items: center;
-  padding: 0.75rem var(--page-gutter);
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding: 0.5rem var(--page-gutter);
   border-block: 1px solid var(--color-rule);
   background:
     linear-gradient(var(--rule-blueprint) 1px, transparent 1px) 0 0 / 32px 32px,
     linear-gradient(90deg, var(--rule-blueprint) 1px, transparent 1px) 0 0 / 32px 32px,
     var(--color-paper-2);
-  margin-bottom: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 
 .meter-strip__label {
@@ -804,13 +843,13 @@ em, i, cite, address, var, dfn {
 /* ─── App Panel (Workbench style) ─── */
 .panel {
   width: 100%;
-  max-width: 42rem;
-  padding: var(--space-xl);
+  max-width: var(--page-max);
+  padding: var(--space-lg) var(--page-gutter);
   margin-inline: auto;
 }
 
 .panel--wide {
-  max-width: 61rem;
+  max-width: var(--page-max);
 }
 
 .panel__header {
@@ -898,7 +937,7 @@ em, i, cite, address, var, dfn {
 
 /* ─── Recorder Columns ─── */
 .panel--recorder {
-  max-width: 76rem;
+  max-width: var(--page-max);
 }
 
 .recorder-layout {
@@ -1880,9 +1919,9 @@ em, i, cite, address, var, dfn {
 /* ─── Footer Ft5: Statement ─── */
 .foot-dense {
   border-top: var(--rule-hair) solid var(--color-rule);
-  padding: var(--space-lg) var(--page-gutter);
+  padding: var(--space-xs) var(--page-gutter);
   background: var(--color-paper-2);
-  margin-top: var(--space-xl);
+  margin-top: 0;
 }
 
 .foot-dense__inner {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ServerCrash, Cpu, RefreshCw, Mic, Trash2 } from 'lucide-react';
+import { ServerCrash, Cpu, RefreshCw, Mic, Trash2, Sun, Moon } from 'lucide-react';
 import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
@@ -82,6 +82,33 @@ function AnalyzingScreen({ stepIndex }: { stepIndex: number }) {
 function App() {
   const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history'>('landing');
   const [historyList, setHistoryList] = useState<any[]>([]);
+
+  // ─── Theme ───
+  const getInitialTheme = (): 'dark' | 'light' => {
+    const saved = localStorage.getItem('vitavoice_theme') as 'dark' | 'light' | null;
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  };
+  const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+    localStorage.setItem('vitavoice_theme', theme);
+  }, [theme]);
+
+  // Auto-follow system if user hasn't manually overridden
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => {
+      if (!localStorage.getItem('vitavoice_theme')) {
+        setTheme(e.matches ? 'dark' : 'light');
+      }
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   useEffect(() => {
     try {
@@ -278,6 +305,20 @@ function App() {
                 API Offline
               </span>
             )}
+
+            {/* Theme toggle */}
+            <button
+              id="theme-toggle-btn"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark'
+                ? <Sun style={{ width: 15, height: 15 }} />
+                : <Moon style={{ width: 15, height: 15 }} />}
+            </button>
+
             {screenState === 'landing' && (
               <button
                 id="start-assessment-btn"

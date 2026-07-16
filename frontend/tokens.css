@@ -49,8 +49,8 @@
   --space-2xl: 4.5rem;
   --space-3xl: 7rem;
 
-  --page-gutter: clamp(1rem, 4vw, 2.5rem);
-  --page-max:    96rem;
+  --page-gutter: clamp(0.75rem, 2.5vw, 1.5rem);
+  --page-max:    100%;
 
   --radius-card:  10px;
   --radius-btn:   6px;
