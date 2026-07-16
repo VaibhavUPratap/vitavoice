@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ServerCrash, Cpu, RefreshCw, Mic } from 'lucide-react';
+import { ServerCrash, Cpu, RefreshCw, Mic, ShieldAlert } from 'lucide-react';
 import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
@@ -342,14 +342,32 @@ function App() {
         )}
       </main>
 
+      {/* Responsible AI — Landing & Global */}
+      {(screenState === 'landing' || screenState === 'recording') && (
+        <section className="responsible-ai responsible-ai--landing page-wrap reveal is-in" style={{ paddingInline: 'var(--page-gutter)', marginBottom: 'var(--space-lg)' }}>
+          <div className="responsible-ai__header">
+            <ShieldAlert style={{ width: 18, height: 18, color: 'var(--color-danger)' }} />
+            <h3 className="responsible-ai__title">Responsible AI</h3>
+          </div>
+          <ul className="responsible-ai__list">
+            <li>This application is intended for preliminary screening only.</li>
+            <li>It is not a medical diagnosis.</li>
+            <li>Voice recordings are processed only for analysis.</li>
+            <li>Long-term storage of recordings is disabled.</li>
+            <li>Consult a qualified neurologist for clinical diagnosis.</li>
+          </ul>
+        </section>
+      )}
+
       <footer id="disclaimer-block" className="foot-dense">
         <div className="foot-dense__inner">
           <p>
-            <strong>Educational &amp; research screening disclaimer.</strong>{' '}
+            <strong>Responsible AI screening disclaimer.</strong>{' '}
             VitaVoice is a preliminary vocal health biomarker screener for educational and wellness
             tracking. It does not replace medical diagnostics or neurologist assessments. Transient
             respiratory conditions can alter voice features. Consult a qualified physician for
-            medical concerns. © 2026 VitaVoice Healthcare Technology Research Group.
+            medical concerns. Voice recordings are processed only for analysis and are not stored
+            long-term. © 2026 VitaVoice Healthcare Technology Research Group.
           </p>
         </div>
       </footer>

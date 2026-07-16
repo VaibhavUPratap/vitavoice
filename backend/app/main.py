@@ -16,6 +16,8 @@ import pandas as pd
 # Import local backend configurations and utilities
 from backend.app.config import settings
 from backend.app.report_generator import generate_clinical_report
+from backend.app.recording_quality import analyze_recording_quality
+from backend.app.response_enrichment import enrich_response
 from ml.inference.predict import VitaVoicePredictor
 from ml.training.train import train_vita_voice
 
@@ -237,8 +239,14 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
                     detail="Inference models not loaded. Retrain models first."
                 )
                 
+        # Analyze recording quality BEFORE inference (file still on disk)
+        recording_quality = analyze_recording_quality(file_path)
+        
         # Run ML prediction
         result = predictor.predict_audio(file_path)
+        
+        # Enrich response with confidence, explanation, recommendation, etc.
+        enriched = enrich_response(result)
         
         # Generate clinical summary report
         report = generate_clinical_report(
@@ -256,7 +264,14 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
             risk_score=result['risk_score'],
             confidence_calibration=result['confidence_calibration'],
             shap_explanation=result['shap_explanation'],
-            output_dir=settings.REPORTS_DIR
+            output_dir=settings.REPORTS_DIR,
+            recording_quality=recording_quality,
+            confidence_label=enriched['confidence_label'],
+            prediction_reliability=enriched['prediction_reliability'],
+            top_biomarkers=enriched['top_biomarkers'],
+            recommendation=enriched['recommendation'],
+            natural_language_explanation=enriched['natural_language_explanation'],
+            biomarker_statuses=enriched['biomarker_statuses'],
         )
         report_url = f"/api/v1/reports/report_{file_id}.pdf"
         
@@ -272,7 +287,18 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
             "embedding_coords": result['embedding_coords'],
             "clinical_metrics": result['clinical_metrics'],
             "report": report,
-            "report_url": report_url
+            "report_url": report_url,
+            # New clinical enrichment fields (backward-compatible)
+            "recording_quality": recording_quality,
+            "confidence_score": enriched['confidence_score'],
+            "confidence_label": enriched['confidence_label'],
+            "prediction_reliability": enriched['prediction_reliability'],
+            "top_biomarkers": enriched['top_biomarkers'],
+            "natural_language_explanation": enriched['natural_language_explanation'],
+            "recommendation": enriched['recommendation'],
+            "responsible_ai": enriched['responsible_ai'],
+            "responsible_ai_points": enriched['responsible_ai_points'],
+            "biomarker_statuses": enriched['biomarker_statuses'],
         }
         
     except Exception as e:

@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Activity, ShieldAlert, RefreshCw, Printer, FileText } from 'lucide-react';
+import {
+  Activity, ShieldAlert, RefreshCw, Printer, FileText,
+  Stethoscope, Brain, AlertTriangle, Mic, BarChart3,
+} from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { EmbeddingCanvas } from './EmbeddingCanvas';
 
@@ -22,6 +25,52 @@ function getRiskColors(score: number): RiskColors {
   return { stroke: 'var(--color-danger)', textClass: 'text-risk-high', badgeClass: 'bg-risk-high' };
 }
 
+/* ─── Confidence Ring SVG Component ─────────────────────────── */
+
+function ConfidenceRing({ score, label, reliability }: { score: number; label: string; reliability: string }) {
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+
+  const ringColor =
+    score >= 90 ? 'var(--color-success)' :
+    score >= 70 ? 'var(--color-accent)' :
+    score >= 55 ? 'var(--color-warning)' :
+    'var(--color-danger)';
+
+  const reliabilityClass =
+    reliability === 'High' ? 'bg-risk-low' :
+    reliability === 'Moderate' ? 'bg-risk-mid' :
+    'bg-risk-high';
+
+  return (
+    <div className="confidence-ring">
+      <div className="confidence-ring__svg-wrap">
+        <svg className="confidence-ring__svg" viewBox="0 0 100 100">
+          <circle className="confidence-ring__bg" cx="50" cy="50" r={radius} />
+          <circle
+            className="confidence-ring__fill"
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke={ringColor}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="confidence-ring__value">
+          <span className="confidence-ring__pct">{Math.round(score)}%</span>
+          <span className="confidence-ring__label">Confidence</span>
+        </div>
+      </div>
+      <span className="stat-block__label">Confidence: {label}</span>
+      <span className={`confidence-ring__reliability ${reliabilityClass}`}>
+        Reliability: {reliability}
+      </span>
+    </div>
+  );
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHistoryRecord, backendUrl }) => {
   const riskScore = data.risk_score as number;
   const embeddingCoords = data.embedding_coords as [number, number];
@@ -33,24 +82,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
   const confidenceCalibration = report.confidence_calibration as Record<string, unknown> | undefined;
   const reportUrl = data.report_url as string | undefined;
 
+  // New enriched data
+  const recordingQuality = data.recording_quality as Record<string, unknown> | undefined;
+  const confidenceScore = (data.confidence_score as number) || 50;
+  const confidenceLabel = (data.confidence_label as string) || 'N/A';
+  const predictionReliability = (data.prediction_reliability as string) || 'N/A';
+  const topBiomarkers = (data.top_biomarkers as Array<Record<string, unknown>>) || [];
+  const naturalLanguageExplanation = (data.natural_language_explanation as string) || '';
+  const recommendationText = (data.recommendation as string) || '';
+  const responsibleAiPoints = (data.responsible_ai_points as string[]) || [
+    'This application is intended for preliminary screening only.',
+    'It is not a medical diagnosis.',
+    'Voice recordings are processed only for analysis.',
+    'Long-term storage of recordings is disabled.',
+    'Consult a qualified neurologist for clinical diagnosis.',
+  ];
+  const biomarkerStatuses = (data.biomarker_statuses as Array<Record<string, unknown>>) || [];
+
   const [clusterPoints, setClusterPoints] = useState<Array<{ x: number; y: number; status: number }>>([]);
   const [clustersLoaded, setClustersLoaded] = useState(false);
   const [historyList, setHistoryList] = useState<Array<Record<string, unknown>>>([]);
 
   const colors = getRiskColors(riskScore);
-
-  const calculateVoiceQualityScore = () => {
-    const jitter = clinicalMetrics.jitter_pct;
-    const shimmer = clinicalMetrics.shimmer_local * 100.0;
-    const hnr = clinicalMetrics.hnr;
-    const jitterScore = Math.max(0, 1 - (jitter / 3.0));
-    const shimmerScore = Math.max(0, 1 - (shimmer / 12.0));
-    const hnrScore = Math.min(1.0, hnr / 26.0);
-    return Math.round((jitterScore * 0.35 + shimmerScore * 0.35 + hnrScore * 0.30) * 100);
-  };
-
-  const voiceQualityScore = calculateVoiceQualityScore();
-  const recordingQualityScore = (data.recording_quality_score as number) || 95;
 
   useEffect(() => {
     const fetchClusters = async () => {
@@ -100,12 +153,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
     month: 'short', day: 'numeric', year: 'numeric',
   }), []);
 
+  // Quality metrics
+  const qualityStars = (recordingQuality?.quality_stars as string) || '★★★★★';
+  const qualityWarning = (recordingQuality?.quality_warning as string) || null;
+
   return (
     <div className="dashboard reveal is-in">
+      {/* ─── Header ─────────────────────────────────────────── */}
       <header className="results-header">
         <div className="results-header__row">
           <div className="results-header__intro">
-            <h1 className="results-header__title">Screening results</h1>
+            <h1 className="results-header__title">Clinical Screening Summary</h1>
             <p className="results-header__meta">{refId} · {screenedDate}</p>
           </div>
           <div className="results-header__actions no-print">
@@ -122,33 +180,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
             </button>
           </div>
         </div>
-
-        <div className="results-header__summary">
-          <div className="results-header__score">
-            <span className={`results-header__pct ${colors.textClass}`}>{Math.round(riskScore * 100)}%</span>
-            <span className="results-header__score-label">Risk score</span>
-          </div>
-          <div className="results-header__details">
-            <span className={`results-header__category ${colors.badgeClass}`}>{report.risk_category as string}</span>
-            {confidenceCalibration && (
-              <span className="results-header__certainty">{confidenceCalibration.certainty_label as string}</span>
-            )}
-            <p className="results-header__summary-text">{report.summary as string}</p>
-          </div>
-          <div className="results-header__metrics">
-            <div className="results-header__metric">
-              <span className="stat-block__label">Voice quality</span>
-              <span className="results-header__metric-value">{voiceQualityScore}%</span>
-            </div>
-            <div className="results-header__metric">
-              <span className="stat-block__label">Recording</span>
-              <span className="results-header__metric-value">{recordingQualityScore}%</span>
-            </div>
-          </div>
-        </div>
       </header>
 
       <div className="dashboard__layout">
+        {/* ─── Sidebar: History ───────────────────────────── */}
         <aside className="card no-print">
           <h3 className="card__label" style={{ display: 'flex', justifyContent: 'space-between' }}>
             Screening History
@@ -183,8 +218,134 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
           )}
         </aside>
 
+        {/* ─── Main Content Sections ─────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', minWidth: 0 }}>
-          <div className="grid-2">
+
+          {/* ═══ Section 1: Clinical Screening Summary ══════ */}
+          <div className="dashboard-section clinical-summary">
+            <div className="clinical-summary__risk">
+              <span className="clinical-summary__risk-label">Estimated Risk</span>
+              <span className={`clinical-summary__risk-pct ${colors.textClass}`}>
+                {Math.round(riskScore * 100)}%
+              </span>
+              <span className={`clinical-summary__risk-cat ${colors.badgeClass}`}>
+                {report.risk_category as string}
+              </span>
+            </div>
+
+            <div className="clinical-summary__divider" />
+
+            <div className="clinical-summary__details">
+              <ConfidenceRing
+                score={confidenceScore}
+                label={confidenceLabel}
+                reliability={predictionReliability}
+              />
+            </div>
+          </div>
+
+          {/* ═══ Section 2: Recording Quality ═══════════════ */}
+          {recordingQuality && (
+            <div className="dashboard-section recording-quality">
+              <div className="recording-quality__header">
+                <div>
+                  <p className="section-label">
+                    <Mic className="section-label__icon" />
+                    Recording Quality
+                  </p>
+                </div>
+                <span className="recording-quality__stars">{qualityStars}</span>
+              </div>
+              <div className="recording-quality__grid">
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Duration</span>
+                  <span className="rq-metric__value">{recordingQuality.duration_seconds as number}s</span>
+                </div>
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Background Noise</span>
+                  <span className="rq-metric__value">{recordingQuality.background_noise_pct as number}%</span>
+                </div>
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Speech Coverage</span>
+                  <span className="rq-metric__value">{recordingQuality.speech_coverage_pct as number}%</span>
+                </div>
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Silence</span>
+                  <span className="rq-metric__value">{recordingQuality.silence_ratio_pct as number}%</span>
+                </div>
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Microphone Status</span>
+                  <span className="rq-metric__value">{recordingQuality.mic_status as string}</span>
+                </div>
+                <div className="rq-metric">
+                  <span className="rq-metric__label">Suitable for Analysis</span>
+                  <span className="rq-metric__value" style={{ color: (recordingQuality.suitable_for_analysis as boolean) ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                    {(recordingQuality.suitable_for_analysis as boolean) ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              </div>
+              {qualityWarning && (
+                <div className="quality-warning">
+                  <AlertTriangle className="quality-warning__icon" style={{ width: 18, height: 18 }} />
+                  <span>{qualityWarning}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ Section 3: Biomarker Analysis ══════════════ */}
+          <div className="dashboard-section">
+            <p className="section-label">
+              <BarChart3 className="section-label__icon" />
+              Biomarker Analysis
+            </p>
+            {biomarkerStatuses.length > 0 ? (
+              <div className="biomarker-status-grid">
+                {biomarkerStatuses.map((bm, idx) => {
+                  const status = bm.status as string;
+                  const isAbnormal = status === 'Elevated' || status === 'Reduced' || status === 'Low' || status === 'High';
+                  const cardClass = isAbnormal
+                    ? (status === 'Reduced' || status === 'Low' ? 'biomarker-status-card--reduced' : 'biomarker-status-card--elevated')
+                    : '';
+                  const badgeClass = isAbnormal ? 'bg-risk-high' : 'bg-risk-low';
+                  const displayValue = bm.key === 'mfcc_profile' ? '—' : `${bm.value} ${bm.unit}`;
+
+                  return (
+                    <div key={idx} className={`biomarker-status-card ${cardClass}`}>
+                      <div className="biomarker-status-card__header">
+                        <span className="biomarker-status-card__name">{bm.label as string}</span>
+                        <span className={`biomarker-status-card__badge ${badgeClass}`}>{status}</span>
+                      </div>
+                      <span className="biomarker-status-card__value">{displayValue}</span>
+                      <p className="biomarker-status-card__ref">Ref: {bm.reference_range as string}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Fallback to legacy biomarker cards */
+              <div className="biomarker-grid">
+                {biomarkerAnalysis.map((biomarker, idx) => {
+                  const isElevated = biomarker.status === 'Elevated' || biomarker.status.includes('Low');
+                  return (
+                    <div key={idx} className={`biomarker-card${isElevated ? ' biomarker-card--elevated' : ''}`}>
+                      <div className="biomarker-card__header">
+                        <span className="biomarker-card__name">{biomarker.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2xs)' }}>
+                        <span className="biomarker-card__value">{biomarker.value}</span>
+                        <span className={`biomarker-card__status ${isElevated ? 'bg-risk-high' : 'bg-risk-low'}`}>{biomarker.status}</span>
+                      </div>
+                      <p className="biomarker-card__explain">{biomarker.explanation}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ═══ Section 4: Voice Projection Map + Distribution ══ */}
+          <div className="dashboard-section grid-2">
             <EmbeddingCanvas
               embeddingCoords={embeddingCoords}
               clusterPoints={clusterPoints}
@@ -192,7 +353,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
             />
 
             <div className="card">
-              <p className="card__label">Risk score distribution</p>
+              <p className="card__label">Risk Score Distribution</p>
               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', marginBottom: 'var(--space-md)' }}>
                 Your score vs healthy and Parkinsonian reference cohorts.
               </p>
@@ -211,75 +372,141 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
             </div>
           </div>
 
-          {shapExplanation && shapExplanation.length > 0 && (
-            <div className="card">
-              <p className="card__label">Explainable AI (SHAP) Biomarker Contributions</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
-                {shapExplanation.map((feat, idx) => {
-                  const shapValue = feat.shap_value as number;
-                  const isPositive = shapValue > 0;
-                  const maxAbs = Math.max(...shapExplanation.map((f) => Math.abs(f.shap_value as number))) || 0.1;
-                  const widthPct = Math.min(100, (Math.abs(shapValue) / maxAbs) * 100);
-                  return (
-                    <div key={idx} className="shap-row">
-                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-ink)' }}>{feat.label as string}</span>
-                      <div className="shap-bar">
-                        <span className="shap-bar__center" />
-                        {isPositive ? (
-                          <span className="shap-bar__pos" style={{ width: `${widthPct / 2}%` }} />
-                        ) : (
-                          <span className="shap-bar__neg" style={{ width: `${widthPct / 2}%` }} />
-                        )}
-                      </div>
-                      <span className={isPositive ? 'text-risk-high' : 'text-risk-low'} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-                        {isPositive ? '+' : ''}{shapValue.toFixed(4)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* ═══ Section 5: Explainable AI ══════════════════ */}
+          <div className="dashboard-section xai-panel">
+            <div className="xai-panel__header">
+              <Brain style={{ width: 18, height: 18, color: 'var(--color-accent)' }} />
+              <h3 className="xai-panel__title">Explainable AI</h3>
             </div>
-          )}
 
-          <div>
-            <p className="card__label">Clinical Vocal Biomarker Metrics</p>
-            <div className="biomarker-grid" style={{ marginTop: 'var(--space-md)' }}>
-              {biomarkerAnalysis.map((biomarker, idx) => {
-                const isElevated = biomarker.status === 'Elevated' || biomarker.status.includes('Low');
-                return (
-                  <div key={idx} className={`biomarker-card${isElevated ? ' biomarker-card--elevated' : ''}`}>
-                    <div className="biomarker-card__header">
-                      <span className="biomarker-card__name">{biomarker.label}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2xs)' }}>
-                      <span className="biomarker-card__value">{biomarker.value}</span>
-                      <span className={`biomarker-card__status ${isElevated ? 'bg-risk-high' : 'bg-risk-low'}`}>{biomarker.status}</span>
-                    </div>
-                    <p className="biomarker-card__explain">{biomarker.explanation}</p>
-                  </div>
-                );
-              })}
-            </div>
+            {/* Directional biomarker indicators */}
+            {topBiomarkers.length > 0 ? (
+              <>
+                <p className="section-label" style={{ marginBottom: 'var(--space-sm)' }}>Top Contributing Biomarkers</p>
+                <div className="xai-biomarker-list">
+                  {topBiomarkers.map((bm, idx) => {
+                    const direction = bm.direction as string;
+                    const descriptor = bm.descriptor as string;
+                    const shapValue = bm.shap_value as number;
+                    const isPositive = shapValue > 0;
+                    return (
+                      <div key={idx} className="xai-biomarker">
+                        <span className={`xai-arrow ${isPositive ? 'xai-arrow--up' : 'xai-arrow--down'}`}>
+                          {direction}
+                        </span>
+                        <span className="xai-biomarker__text">{descriptor}</span>
+                        <span className={`xai-biomarker__shap ${isPositive ? 'text-risk-high' : 'text-risk-low'}`}>
+                          {isPositive ? '+' : ''}{shapValue.toFixed(4)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : shapExplanation && shapExplanation.length > 0 ? (
+              /* Fallback to legacy SHAP bars */
+              <>
+                <p className="card__label">SHAP Biomarker Contributions</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', marginTop: 'var(--space-md)' }}>
+                  {shapExplanation.map((feat, idx) => {
+                    const shapValue = feat.shap_value as number;
+                    const isPositive = shapValue > 0;
+                    const maxAbs = Math.max(...shapExplanation.map((f) => Math.abs(f.shap_value as number))) || 0.1;
+                    const widthPct = Math.min(100, (Math.abs(shapValue) / maxAbs) * 100);
+                    return (
+                      <div key={idx} className="shap-row">
+                        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-ink)' }}>{feat.label as string}</span>
+                        <div className="shap-bar">
+                          <span className="shap-bar__center" />
+                          {isPositive ? (
+                            <span className="shap-bar__pos" style={{ width: `${widthPct / 2}%` }} />
+                          ) : (
+                            <span className="shap-bar__neg" style={{ width: `${widthPct / 2}%` }} />
+                          )}
+                        </div>
+                        <span className={isPositive ? 'text-risk-high' : 'text-risk-low'} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                          {isPositive ? '+' : ''}{shapValue.toFixed(4)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+
+            {/* Natural language explanation */}
+            {naturalLanguageExplanation && (
+              <>
+                <p className="section-label" style={{ marginTop: topBiomarkers.length > 0 ? 0 : 'var(--space-md)' }}>Model Explanation</p>
+                <div className="xai-explanation">
+                  {naturalLanguageExplanation}
+                </div>
+              </>
+            )}
+
+            {/* Legacy SHAP bar chart (still shown below XAI if legacy data is available and new XAI used top biomarkers) */}
+            {topBiomarkers.length > 0 && shapExplanation && shapExplanation.length > 0 && (
+              <div style={{ marginTop: 'var(--space-lg)' }}>
+                <p className="section-label">SHAP Feature Importance</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                  {shapExplanation.map((feat, idx) => {
+                    const shapValue = feat.shap_value as number;
+                    const isPositive = shapValue > 0;
+                    const maxAbs = Math.max(...shapExplanation.map((f) => Math.abs(f.shap_value as number))) || 0.1;
+                    const widthPct = Math.min(100, (Math.abs(shapValue) / maxAbs) * 100);
+                    return (
+                      <div key={idx} className="shap-row">
+                        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-ink)' }}>{feat.label as string}</span>
+                        <div className="shap-bar">
+                          <span className="shap-bar__center" />
+                          {isPositive ? (
+                            <span className="shap-bar__pos" style={{ width: `${widthPct / 2}%` }} />
+                          ) : (
+                            <span className="shap-bar__neg" style={{ width: `${widthPct / 2}%` }} />
+                          )}
+                        </div>
+                        <span className={isPositive ? 'text-risk-high' : 'text-risk-low'} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                          {isPositive ? '+' : ''}{shapValue.toFixed(4)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="grid-2">
-            <div className="card">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2xs)', fontFamily: 'var(--font-display)', fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 var(--space-md)' }}>
-                <Activity style={{ width: 18, height: 18, color: 'var(--color-accent)' }} />
-                Clinical Recommendations
-              </h3>
-              <ul className="rec-list">
-                {recommendations.map((rec, idx) => <li key={idx}>{rec}</li>)}
+          {/* ═══ Section 6: Recommendation & Responsible AI ═ */}
+          <div className="dashboard-section grid-2">
+            {/* Recommendation */}
+            <div className="recommendation-card">
+              <div className="recommendation-card__header">
+                <Stethoscope style={{ width: 18, height: 18, color: 'var(--color-accent)' }} />
+                <h3 className="recommendation-card__title">Clinical Recommendation</h3>
+              </div>
+              {recommendationText ? (
+                <p className="recommendation-card__text">{recommendationText}</p>
+              ) : (
+                <ul className="rec-list">
+                  {recommendations.map((rec, idx) => <li key={idx}>{rec}</li>)}
+                </ul>
+              )}
+            </div>
+
+            {/* Responsible AI */}
+            <div className="responsible-ai">
+              <div className="responsible-ai__header">
+                <ShieldAlert style={{ width: 18, height: 18, color: 'var(--color-danger)' }} />
+                <h3 className="responsible-ai__title">Responsible AI</h3>
+              </div>
+              <ul className="responsible-ai__list">
+                {responsibleAiPoints.map((point, idx) => (
+                  <li key={idx}>{point}</li>
+                ))}
               </ul>
             </div>
-            <div className="card card--risk-elevated">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2xs)', fontFamily: 'var(--font-display)', fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--color-danger)', margin: '0 0 var(--space-md)' }}>
-                <ShieldAlert style={{ width: 18, height: 18 }} />
-                Medical Disclaimer
-              </h3>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-ink-2)', lineHeight: 1.75, margin: 0 }}>{report.disclaimer as string}</p>
-            </div>
           </div>
+
         </div>
       </div>
     </div>
