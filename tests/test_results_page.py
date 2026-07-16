@@ -26,7 +26,7 @@ def test_results_page_alignment():
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         page = context.new_page()
         
-        url = "http://localhost:5173"
+        url = os.environ.get("TEST_URL", "http://localhost:8000")
         print(f"Navigating to {url}...")
         
         try:

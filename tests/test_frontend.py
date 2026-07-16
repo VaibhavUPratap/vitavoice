@@ -11,8 +11,8 @@ def test_frontend_navigation():
         context = browser.new_context(viewport={"width": 1280, "height": 800})
         page = context.new_page()
         
-        # Address of local Vite development server
-        url = "http://localhost:5173"
+        # Address of local development server
+        url = os.environ.get("TEST_URL", "http://localhost:8000")
         print(f"Navigating to {url}...")
         
         try:

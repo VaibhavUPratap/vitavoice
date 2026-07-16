@@ -52,3 +52,22 @@ VitaVoice prioritizes explainable AI by mapping model predictions directly to ph
 | **Amplitude Shimmer** | Vocal fold vibration loudness instability | Elevated. Reduced subglottal pressure control makes it difficult to maintain a steady vocal volume. |
 | **HNR (Harmonics-to-Noise)** | Completeness of vocal fold closure | Lowered. Incomplete closure leads to turbulent air leakage, causing a breathy, hoarse, or noisy voice. |
 | **MFCCs** | Shape of the vocal tract filter | Altered. Reduced movement range of the tongue, lips, and jaw changes the spectral envelope shape. |
+
+---
+
+## 5. Algorithmic Safeguards & Mitigations
+
+To prevent automated diagnostic misinterpretation and ensure safe usage, VitaVoice incorporates two major software safeguards:
+
+### A. Pre-Inference Recording Quality Control
+Low-quality audio (e.g., quiet whisper, loud background noise, digital clipping) leads to garbage-in, garbage-out model behavior. 
+- **SNR and Noise Assessment**: Standardizes sample analysis. Audio with high noise percentage (>50%) or low SNR (<10 dB) is flagged as "Noisy".
+- **Clipping Detection**: Alerts when the signal exceeds a critical threshold ($\ge 0.99$ peak amplitude), indicating digital distortion.
+- **Suitability Filtering**: Assigns a 1-5 star quality score. Any audio rated $\le 2$ stars generates a clear warning label instructing the user that results are less reliable due to recording conditions.
+
+### B. Post-Inference Response Enrichment
+Raw prediction probabilities can be confusing or alarming. The backend enriches raw classification outputs into clear, safe clinical contexts:
+- **Certainty Calibration**: Reports margin-based confidence tiers ("Very High", "High", "Moderate", "Low") to signal when a user's voice is close to the decision boundary (high variance/low certainty) or highly defined.
+- **Risk-Stratified Actionable Recommendations**: Generates tailored clinical suggestions based on risk. Low risk recommends wellness tracking; moderate risk recommends retesting in quiet rooms to eliminate transient acoustic biases; high risk recommends formal ENT/Neurological diagnostic assessments.
+- **Explainable AI (SHAP) & Natural Language**: Automatically synthesizes complex SHAP vector arrays into a plain-English explanation (e.g., "screening result was primarily influenced by increased vocal jitter, which may indicate minor speech irregularities...") to demystify "black-box" predictions.
+- **Direct Disclaimers**: Ensures the generated PDF reports and interactive frontend feature explicit responsible AI disclaimers clarifying that the tool is a wellness screening aid, not a diagnostic platform.

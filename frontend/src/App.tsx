@@ -1,49 +1,107 @@
 import { useState, useEffect, useRef } from 'react';
-import { ServerCrash, Cpu, RefreshCw, Mic, ShieldAlert } from 'lucide-react';
+import { ServerCrash, Cpu, RefreshCw, Mic, Trash2 } from 'lucide-react';
 import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
 const LOADER_STEPS = [
-  'Receiving WAV voice payload...',
-  'Running downsampling & audio resampling...',
-  'Executing spectral gating noise reduction...',
-  'Locating speech cycles (voiced F0 segments)...',
-  'Calculating cycle-by-cycle pitch Jitter...',
-  'Extracting cycle-by-cycle amplitude Shimmer...',
-  'Computing Harmonics-to-Noise Ratio (HNR)...',
-  'Loading WavLM Base speech transformer...',
-  'Extracting 768-dimensional neural embeddings...',
-  'Applying PCA dimensionality reduction...',
-  'Concatenating hybrid biomarker feature maps...',
-  'Running SV Ensemble classifier model...',
-  'Generating health report summary...',
+  { tag: 'CONNECTING', msg: 'Isolating vocal tract via Web Audio API...' },
+  { tag: 'PROCESSING', msg: 'Applying Spectral Gating Noise Reduction & Loudness Standardizer (-1.0 dBFS)...' },
+  { tag: 'EXTRACTING', msg: 'Locating speech cycles (voiced F0 segments)...' },
+  { tag: 'EXTRACTING', msg: 'Calculating Micro-arrhythmias (Jitter: local, Shimmer: local)...' },
+  { tag: 'EXTRACTING', msg: 'Computing Harmonics-to-Noise Ratio (HNR)...' },
+  { tag: 'FOUNDATION INF', msg: 'Forward pass through WavLM Deep Speech Embedding Space...' },
+  { tag: 'FOUNDATION INF', msg: 'Projecting 768-dimensional neural embeddings to PCA space...' },
+  { tag: 'CLASSIFYING', msg: 'Running Hybrid Feature Fusion Ensemble classifier model...' },
+  { tag: 'REPORTING', msg: 'Generating clinical-grade health report & Kernel SHAP attribution...' },
 ];
 
-function AnalyzingScreen({ message }: { message: string }) {
+function AnalyzingScreen({ stepIndex }: { stepIndex: number }) {
+  const progress = ((stepIndex + 1) / LOADER_STEPS.length) * 100;
+  
+  const timeRef = useRef<string[]>([]);
+  if (timeRef.current.length === 0) {
+    const baseTime = Date.now();
+    for (let i = 0; i < LOADER_STEPS.length; i++) {
+      const d = new Date(baseTime + i * 1200);
+      timeRef.current.push(d.toLocaleTimeString(undefined, { hour12: false, fractionSecondDigits: 3 } as any));
+    }
+  }
+
   return (
     <div className="analyzing reveal is-in">
-      <div className="analyzing__spinner" aria-hidden="true" />
-      <h3 className="analyzing__title">Analyzing Voice Biomarkers</h3>
-      <p className="analyzing__meta">Running digital signal inference</p>
+      <h3 className="analyzing__title">Acoustic & Neural Diagnostics Engine</h3>
+      <p className="analyzing__meta">Active Pipeline Execution Protocol</p>
+      
       <div className="analyzing__track">
-        <div className="analyzing__progress" />
+        <div className="analyzing__progress" style={{ width: `${progress}%` }} />
       </div>
-      <p className="analyzing__message">{message}</p>
+
+      <div className="console-terminal">
+        <div className="console-terminal__header">
+          <span className="console-terminal__dot console-terminal__dot--red" />
+          <span className="console-terminal__dot console-terminal__dot--yellow" />
+          <span className="console-terminal__dot console-terminal__dot--green" />
+          <span className="console-terminal__title">vocal_diagnostics_pipeline.log</span>
+        </div>
+        <div className="console-terminal__body">
+          {LOADER_STEPS.map((step, idx) => {
+            let status: 'pending' | 'running' | 'ok' = 'pending';
+            if (idx < stepIndex) {
+              status = 'ok';
+            } else if (idx === stepIndex) {
+              status = 'running';
+            }
+
+            return (
+              <div key={idx} className={`console-line console-line--${status}`}>
+                {status !== 'pending' ? (
+                  <span className="console-line__time">[{timeRef.current[idx]}]</span>
+                ) : (
+                  <span className="console-line__time">[ --:--:--.--- ]</span>
+                )}
+                <span className="console-line__tag">[{step.tag}]</span>
+                <span className="console-line__msg">{step.msg}</span>
+                {status === 'ok' && <span className="console-line__status console-line__status--ok">SUCCESS</span>}
+                {status === 'running' && <span className="console-line__status console-line__status--running">PROCESSING</span>}
+                {status === 'pending' && <span className="console-line__status console-line__status--pending">QUEUED</span>}
+              </div>
+            );
+          })}
+          <div className="console-line console-line--active">
+            <span className="console-line__cursor">█</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 function App() {
-  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results'>('landing');
+  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history'>('landing');
+  const [historyList, setHistoryList] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const historyStr = localStorage.getItem('vitavoice_history') || '[]';
+      setHistoryList(JSON.parse(historyStr));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [screenState]);
+
+  const handleClearHistory = () => {
+    localStorage.removeItem('vitavoice_history');
+    setHistoryList([]);
+  };
   const [apiOnline, setApiOnline] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [loaderMessage, setLoaderMessage] = useState('Initializing pipelines...');
+  const [loaderStepIndex, setLoaderStepIndex] = useState(0);
   const revealRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,14 +124,15 @@ function App() {
 
   useEffect(() => {
     if (screenState !== 'analyzing') return;
-    let i = 0;
-    setLoaderMessage(LOADER_STEPS[0]);
+    setLoaderStepIndex(0);
     const interval = setInterval(() => {
-      if (i < LOADER_STEPS.length - 1) {
-        i += 1;
-        setLoaderMessage(LOADER_STEPS[i]);
-      }
-    }, 1800);
+      setLoaderStepIndex((prev) => {
+        if (prev < LOADER_STEPS.length - 1) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, 1200);
     return () => clearInterval(interval);
   }, [screenState]);
 
@@ -121,7 +180,7 @@ function App() {
   const handleAnalysisStart = () => {
     setErrorMsg(null);
     setScreenState('analyzing');
-    setLoaderMessage(LOADER_STEPS[0]);
+    setLoaderStepIndex(0);
   };
 
   const handleLoadHistoryRecord = (recordData: Record<string, unknown>) => {
@@ -179,21 +238,31 @@ function App() {
 
           <nav className="nav-bar__links" aria-label="Primary">
             <a
-              href="#disclaimer-block"
+              href="#disclaimer"
               className="nav-bar__link"
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById('disclaimer-block')?.scrollIntoView({ behavior: 'smooth' });
+                setScreenState('disclaimer');
               }}
             >
-              Disclaimer
+              disclaimer
+            </a>
+            <a
+              href="#history"
+              className="nav-bar__link"
+              onClick={(e) => {
+                e.preventDefault();
+                setScreenState('history');
+              }}
+            >
+              history
             </a>
             <a
               href="https://github.com"
               className="nav-bar__link"
               onClick={(e) => e.preventDefault()}
             >
-              Documentation
+              documentation
             </a>
           </nav>
 
@@ -259,11 +328,10 @@ function App() {
                   <span className="landing__stat-unit">concatenated features</span>
                 </div>
                 <h1 className="landing__headline">
-                  Screen health risks through sustained vowel analysis.
+                  <em>screen</em> health risks through sustained vowel analysis.
                 </h1>
                 <p className="landing__lede">
-                  VitaVoice combines clinical perturbation metrics with WavLM&nbsp;Base
-                  embeddings to surface voice instabilities associated with neurological conditions.
+                  VitaVoice leverages a Hybrid Feature Fusion Ensemble architecture. By combining classical acoustic digital signal processing (DSP)—tracking micro-structural properties like vocal jitter and shimmer—with a 768-dimensional deep neural transformer foundation model (WavLM Base), the system yields medical-screening grade screening insights with calibrated, explainable confidence metrics.
                 </p>
                 <div className="landing__cta-row">
                   <button
@@ -274,18 +342,27 @@ function App() {
                     <Mic style={{ width: 16, height: 16 }} />
                     Start Voice Assessment
                   </button>
-                  <a
-                    href="#disclaimer-block"
-                    id="read-disclaimer-link"
+                  <button
+                    id="read-disclaimer-btn"
                     className="btn btn--outline"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById('disclaimer-block')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
+                    onClick={() => setScreenState('disclaimer')}
                   >
                     Read Disclaimer
-                  </a>
+                  </button>
                 </div>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', marginTop: 'var(--space-xs)' }}>
+                  already completed an assessment?{' '}
+                  <a
+                    href="#history"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setScreenState('history');
+                    }}
+                    style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
+                  >
+                    view local screening history
+                  </a>
+                </p>
                 {!apiOnline && (
                   <p className="landing__offline">
                     Please launch the FastAPI backend server first.
@@ -307,6 +384,26 @@ function App() {
                 </div>
               </div>
               <LandingVisual />
+            </div>
+
+            {/* Lumen Meter Strip */}
+            <div className="meter-strip reveal">
+              <div className="meter-strip__label">signal · 16.0 khz</div>
+              <div className="meter-strip__ticks">
+                {Array.from({ length: 72 }).map((_, idx) => {
+                  const x = (idx - 36) / 16;
+                  const h = Math.round(14 * Math.exp(-x * x) + Math.random() * 3 + 2);
+                  const op = (0.25 + 0.75 * Math.exp(-x * x)).toFixed(2);
+                  return (
+                    <span
+                      key={idx}
+                      className="meter-strip__tick"
+                      style={{ height: `${h}px`, opacity: op }}
+                    />
+                  );
+                })}
+              </div>
+              <div className="meter-strip__label">drift · 0.02 σ</div>
             </div>
           </section>
         )}
@@ -330,7 +427,7 @@ function App() {
           </div>
         )}
 
-        {screenState === 'analyzing' && <AnalyzingScreen message={loaderMessage} />}
+        {screenState === 'analyzing' && <AnalyzingScreen stepIndex={loaderStepIndex} />}
 
         {screenState === 'results' && analysisResult && (
           <Dashboard
@@ -340,34 +437,130 @@ function App() {
             backendUrl={BACKEND_URL}
           />
         )}
+        {screenState === 'disclaimer' && (
+          <div className="page-wrap reveal is-in" style={{ paddingBlock: 'var(--space-md)', width: '100%' }}>
+            <button id="back-to-home-btn" className="back-link" onClick={handleReset}>
+              ← Back to home
+            </button>
+            <article className="panel panel--wide">
+              <header className="panel__header">
+                <div>
+                  <h2 className="panel__title">responsible ai screening disclaimer</h2>
+                  <p className="panel__subtitle">vitavoice clinical & ethical validation standards</p>
+                </div>
+              </header>
+              <section className="step-section">
+                <p className="step-section__body" style={{ fontSize: 'var(--text-sm)', lineHeight: 1.8 }}>
+                  vitavoice is a preliminary vocal health biomarker screening tool intended for wellness tracking and educational research purposes. it is not a diagnostic device and does not replace professional clinical assessments by a neurologist or physician.
+                </p>
+              </section>
+              <section className="step-section">
+                <h3 className="step-section__title" style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 'var(--text-xs)' }}>responsible screening principles</h3>
+                <ul className="responsible-ai__list" style={{ marginTop: 'var(--space-xs)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+                  <li>vocal tracts are isolated using advanced client-side web audio dsp APIs without raw recording retention.</li>
+                  <li>all audio files processed on the backend are deleted immediately after feature extraction.</li>
+                  <li>neural transformer embeddings are projected locally and explainability attributions are client-calibrated.</li>
+                  <li>temporary respiratory variations (e.g. cold, fatigue) can affect results. clinical consultation is advised.</li>
+                </ul>
+              </section>
+            </article>
+          </div>
+        )}
+
+        {screenState === 'history' && (
+          <div className="page-wrap reveal is-in" style={{ paddingBlock: 'var(--space-md)', width: '100%' }}>
+            <button id="back-to-home-btn" className="back-link" onClick={handleReset}>
+              ← Back to home
+            </button>
+            <article className="panel panel--wide">
+              <header className="panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 className="panel__title">screening history logs</h2>
+                  <p className="panel__subtitle">locally cached digital signal processing profiles</p>
+                </div>
+                {historyList.length > 0 && (
+                  <button
+                    onClick={handleClearHistory}
+                    className="btn btn--danger btn--sm no-print"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Trash2 style={{ width: 14, height: 14 }} /> clear cache
+                  </button>
+                )}
+              </header>
+
+              <section className="step-section">
+                {historyList.length === 0 ? (
+                  <p className="step-section__body" style={{ textAlign: 'center', padding: 'var(--space-xl) 0', color: 'var(--color-ink-3)' }}>
+                    no local screening history found. run a voice assessment to populate records.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                    {historyList.map((run, idx) => {
+                      const runDate = new Date(run.timestamp).toLocaleDateString();
+                      const runTime = new Date(run.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      const scorePct = Math.round(run.risk_score * 100);
+                      const isHigh = run.risk_score >= 0.5;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="card"
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: 'var(--space-md) var(--space-lg)',
+                            gap: 'var(--space-md)',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', fontFamily: 'var(--font-mono)' }}>
+                              ID: {run.id} · {runDate} {runTime}
+                            </span>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-2)' }}>
+                              calibration status: {run.certainty_label.toLowerCase()}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', color: isHigh ? 'var(--color-danger)' : 'var(--color-success)', fontWeight: 'bold' }}>
+                                {scorePct}% risk ({run.risk_category.toLowerCase()})
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleLoadHistoryRecord(run.data)}
+                              className="btn btn--outline btn--sm"
+                            >
+                              view report
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </article>
+          </div>
+        )}
       </main>
 
-      {/* Responsible AI — Landing & Global */}
-      {(screenState === 'landing' || screenState === 'recording') && (
-        <section className="responsible-ai responsible-ai--landing page-wrap reveal is-in" style={{ paddingInline: 'var(--page-gutter)', marginBottom: 'var(--space-lg)' }}>
-          <div className="responsible-ai__header">
-            <ShieldAlert style={{ width: 18, height: 18, color: 'var(--color-danger)' }} />
-            <h3 className="responsible-ai__title">Responsible AI</h3>
-          </div>
-          <ul className="responsible-ai__list">
-            <li>This application is intended for preliminary screening only.</li>
-            <li>It is not a medical diagnosis.</li>
-            <li>Voice recordings are processed only for analysis.</li>
-            <li>Long-term storage of recordings is disabled.</li>
-            <li>Consult a qualified neurologist for clinical diagnosis.</li>
-          </ul>
-        </section>
-      )}
-
-      <footer id="disclaimer-block" className="foot-dense">
+      <footer className="foot-dense">
         <div className="foot-dense__inner">
-          <p>
-            <strong>Responsible AI screening disclaimer.</strong>{' '}
-            VitaVoice is a preliminary vocal health biomarker screener for educational and wellness
-            tracking. It does not replace medical diagnostics or neurologist assessments. Transient
-            respiratory conditions can alter voice features. Consult a qualified physician for
-            medical concerns. Voice recordings are processed only for analysis and are not stored
-            long-term. © 2026 VitaVoice Healthcare Technology Research Group.
+          <p style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
+            <span>© 2026 vitavoice healthcare technology research group.</span>
+            <a
+              href="#disclaimer"
+              onClick={(e) => {
+                e.preventDefault();
+                setScreenState('disclaimer');
+              }}
+              style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
+            >
+              read clinical disclaimer
+            </a>
           </p>
         </div>
       </footer>

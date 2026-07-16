@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-07-16",
+    "macrostructure": "Marquee Hero + Workbench",
+    "theme": "Lumen (Night Foundry)",
+    "enrichment": "E0 custom SVG apparatus",
+    "brief": "VitaVoice · atmospheric overhauling to Lumen theme",
+    "scope": "app"
+  },
+  {
     "date": "2026-06-11",
     "macrostructure": "Stat-Led + Workbench",
     "theme": "Cobalt",

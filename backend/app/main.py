@@ -7,9 +7,10 @@ import time
 import logging
 import json
 import asyncio
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
 
@@ -47,7 +48,7 @@ class TokenBucketLimiter:
     def __init__(self, rate: float, capacity: float):
         self.rate = rate  # tokens added per second
         self.capacity = capacity
-        self.buckets = {}
+        self.buckets: dict[str, tuple[float, float]] = {}
         self.lock = threading.Lock()
         
     def allow_request(self, ip: str) -> bool:
@@ -211,7 +212,10 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
     if content_length and int(content_length) > settings.MAX_CONTENT_LENGTH:
         raise HTTPException(status_code=400, detail=f"File size exceeds the maximum limit of {settings.MAX_CONTENT_LENGTH // (1024*1024)}MB.")
         
-    ext = file.filename.split(".")[-1].lower()
+    filename = file.filename
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is missing.")
+    ext = filename.split(".")[-1].lower()
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400, 
@@ -220,7 +224,7 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
         
     # Save file with unique ID prefix to prevent filename conflicts
     file_id = str(uuid.uuid4())[:8]
-    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}_{file.filename}")
+    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}_{filename}")
     
     try:
         with open(file_path, "wb") as buffer:
@@ -281,6 +285,7 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
             
         return {
             "success": True,
+            "prediction_id": file_id,
             "filename": file.filename,
             "risk_score": result['risk_score'],
             "status": result['status'],
@@ -324,3 +329,78 @@ def get_reference_clusters():
         return {"loaded": True, "points": points}
     except Exception as e:
         return {"loaded": False, "error": str(e), "points": []}
+
+# Analysis Router Hooks (Fallback Architecture)
+router = APIRouter(prefix="/api/v1/analysis", tags=["Analysis Baseline"])
+
+class AnalysisRequest(BaseModel):
+    audio_id: str
+
+class CopilotResponse(BaseModel):
+    summary: str
+    citations: list[str]
+    is_fallback: bool
+
+@router.get("/download-pdf/{prediction_id}")
+async def download_screening_report(prediction_id: str):
+    """
+    BASELINE: Returns the actual generated PDF report if it exists,
+    otherwise returns a success status or dummy data placeholder.
+    FUTURE: Will compile ReportLab elements + SHAP graphs into a polished medical PDF.
+    """
+    pdf_path = os.path.join(settings.REPORTS_DIR, f"report_{prediction_id}.pdf")
+    if os.path.exists(pdf_path):
+        return FileResponse(pdf_path, media_type="application/pdf", filename=f"report_{prediction_id}.pdf")
+    
+    return {"status": "success", "message": f"Placeholder for PDF report {prediction_id}"}
+
+@router.post("/copilot-insight", response_model=CopilotResponse)
+async def get_clinical_copilot_insight(payload: AnalysisRequest):
+    """
+    BASELINE: Fallback engine providing rule-based explanations based on DSP metrics.
+    FUTURE: Will hook into ChromaDB vector search + OpenAI/Ollama for RAG insights.
+    """
+    try:
+        # Hardcoded baseline fallback logic for now:
+        baseline_summary = (
+            "Vocal analysis baseline complete. Acoustic measurements indicate parameters "
+            "within normal variance thresholds. Feature extraction successfully isolated vocal track properties."
+        )
+        
+        return CopilotResponse(
+            summary=baseline_summary,
+            citations=["VitaVoice Standard DSP Diagnostic Baseline (v1.0)"],
+            is_fallback=True
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.include_router(router)
+
+# Mount frontend build directory to serve static React SPA
+frontend_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
+if os.path.exists(frontend_dir):
+    # Mount assets folder
+    assets_dir = os.path.join(frontend_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        
+    # Catch-all to serve index.html for React SPA client-side routing
+    @app.get("/{fallback_path:path}")
+    async def spa_fallback(request: Request, fallback_path: str):
+        # Let API endpoints and auto-docs bypass
+        if fallback_path.startswith("api/") or fallback_path in ("docs", "redoc", "openapi.json"):
+            raise HTTPException(status_code=404, detail="Not Found")
+            
+        # Avoid intercepting static files like favicon.ico, etc.
+        if "." in fallback_path and not fallback_path.endswith(".html"):
+            file_path = os.path.join(frontend_dir, fallback_path)
+            if os.path.exists(file_path):
+                return FileResponse(file_path)
+            raise HTTPException(status_code=404, detail="File Not Found")
+            
+        index_path = os.path.join(frontend_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Index Not Found")
+

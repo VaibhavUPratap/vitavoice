@@ -107,3 +107,15 @@ If you wish to add new features (e.g., spectral flatness or new speech foundatio
 1. **Acoustic Extraction**: Update `extract_all_acoustic_features` in `ml/feature_extraction/acoustic.py`.
 2. **Model Training**: Add the feature name to the lists in `ml/training/train.py` and run a model retraining.
 3. **Training Models**: Model retraining can be triggered directly on the UI via the "Train AI Models Now" warning banner, or by sending a POST request to `/api/v1/train`.
+
+---
+
+## 5. Clinical Copilot & RAG Integration
+
+The backend includes a dedicated router `/api/v1/analysis` in `backend/app/main.py` for clinician copilot features:
+- **Baseline Fallback**: The `/copilot-insight` endpoint currently generates rule-based descriptions of the acoustic features.
+- **RAG Upgrades**: To implement full Retrieval-Augmented Generation:
+  1. Initialize a vector database client (e.g., ChromaDB or Qdrant) within `backend/app/main.py` or a helper module.
+  2. Embed clinical research papers using a sentence transformer model.
+  3. Query the vector database with extracted user biomarkers.
+  4. Pass the retrieved context along with patient acoustic scores to an LLM provider (e.g., OpenAI API or a local Ollama server running Llama-3) to return customized diagnostic insights.

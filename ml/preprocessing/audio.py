@@ -69,27 +69,39 @@ class VoiceActivityDetector:
         # Frame the signal
         frames = librosa.util.frame(y, frame_length=frame_len, hop_length=hop_len)
         
-        voiced_frames = []
+        voiced_mask = []
         for i in range(frames.shape[1]):
             frame = frames[:, i]
             # 1. Compute RMS energy
             rms = np.sqrt(np.mean(frame**2))
             
-            # 2. Compute Spectral Flatness (flatness closer to 1 means noise/whisper, closer to 0 means harmonic speech)
+            # 2. Compute Spectral Flatness
             flatness = librosa.feature.spectral_flatness(y=frame)[0][0]
             
-            # Voiced speech has high energy and low flatness (harmonicity)
-            if rms > self.energy_threshold and flatness < self.flatness_threshold:
-                voiced_frames.append(frame)
-                
-        if len(voiced_frames) == 0:
+            # Voiced speech has high energy and low flatness
+            voiced_mask.append(rms > self.energy_threshold and flatness < self.flatness_threshold)
+            
+        # Find the longest continuous run of voiced frames
+        longest_run = []
+        current_run = []
+        for idx, is_voiced in enumerate(voiced_mask):
+            if is_voiced:
+                current_run.append(idx)
+            else:
+                if len(current_run) > len(longest_run):
+                    longest_run = current_run
+                current_run = []
+        if len(current_run) > len(longest_run):
+            longest_run = current_run
+            
+        if len(longest_run) == 0:
             # Fallback: if VAD filters everything, return the original signal to prevent crashes
             return y
             
-        # Reconstruct voiced audio (overlap-add or simple concatenation)
-        # For vocal biomarkers, simple concatenation of speech frames is standard
-        y_voiced = np.concatenate(voiced_frames)
-        return y_voiced
+        # Map frame indices back to sample index range in original continuous signal
+        start_sample = longest_run[0] * hop_len
+        end_sample = longest_run[-1] * hop_len + frame_len
+        return y[start_sample:end_sample]
 
 class SilenceTrimmer:
     """

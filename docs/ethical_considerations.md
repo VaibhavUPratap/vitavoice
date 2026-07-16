@@ -28,9 +28,11 @@ Vocal recordings contain biometric information. To ensure maximum patient privac
 
 ---
 
-## 3. Transparency & Interpretability (Explainable AI)
+## 3. Transparency, Quality, & Interpretability (Explainable AI)
 
-Black-box machine learning in medicine can hide biases and reduce clinician trust. VitaVoice enforces transparency by:
-- **Interpretability via SHAP**: Utilizing SHAP (SHapley Additive exPlanations) to display the top 5 contributing acoustic biomarkers on the results screen. This allows clinicians to understand exactly which characteristics (e.g., amplitude shimmer or pitch jitter) drove the risk estimation.
+Black-box machine learning in medicine can hide biases and reduce clinician trust. VitaVoice enforces transparency and safety by:
+- **Input Quality Guardrails**: Incorporating a pre-inference **Recording Quality Analyzer** that checks input audio files for background noise, Signal-to-Noise Ratio (SNR), clipping, and speech coverage. This prevents corrupt or low-quality data from producing misleading risk scores, and flags warnings if a recording's score is $\le 2$ stars.
+- **Interpretability via SHAP**: Utilizing SHAP (SHapley Additive exPlanations) to display the top 5 contributing acoustic biomarkers on the results screen. This allows clinicians and users to understand exactly which characteristics (e.g., amplitude shimmer or pitch jitter) drove the risk estimation.
 - **Certainty Calibration**: Providing a calibrated certainty score (e.g., "High Certainty" vs "Low Certainty"). This signals to the user when a vocal pattern lies near the decision boundary (low certainty) or is highly defined.
+- **Clinical Response Enrichment**: Wrapping raw predictions with risk-stratified actionable recommendations (such as advising quiet retesting for moderate scores, and professional neurological consultations for elevated scores), plain-English explanations, and explicit responsible AI guidelines to prevent misinterpretation.
 - **Acoustic Explanations**: Presenting clear, clinical definitions for all vocal biomarkers (F0, Jitter, Shimmer, HNR) on the dashboard cards, making the results understandable to non-expert users.

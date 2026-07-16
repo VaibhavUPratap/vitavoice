@@ -277,174 +277,186 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   return (
-    <article className="panel">
+    <article className="panel panel--recorder animate-fade-in">
       <header className="panel__header">
         <div>
           <h2 className="panel__title">Voice Screening Protocol</h2>
           <p className="panel__subtitle">Sustained vowel capture · 16 kHz mono WAV</p>
         </div>
         {isRecording && (
-          <span className="badge badge--offline" style={{ borderColor: 'oklch(88% 0.04 25)', background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
+          <span className="badge badge--offline">
             <span className="badge__dot" />
             {recordingDuration}s / 30s
           </span>
         )}
       </header>
 
-      {!calibrationDone && (
-        <section className="step-section">
-          <h3 className="step-section__title">
-            <Volume2 style={{ width: 15, height: 15, color: 'var(--color-accent)' }} />
-            Step 1: Acoustic Environment Calibration
-          </h3>
-          <p className="step-section__body" style={{ marginBottom: 'var(--space-md)' }}>
-            Before recording, we measure background noise. Sit in a quiet room and click Calibrate — we listen for 2 seconds.
-          </p>
-          <button id="calibrate-btn" onClick={calibrateMicrophone} disabled={isCalibrating} className="btn btn--outline btn--sm">
-            {isCalibrating ? 'Calibrating...' : 'Calibrate Environment'}
-          </button>
-        </section>
-      )}
+      <div className="recorder-layout">
+        {/* Left Column: Calibration, Instructions, and Consent */}
+        <div className="recorder-layout__col">
+          {!calibrationDone && (
+            <section className="step-section">
+              <h3 className="step-section__title">
+                <Volume2 style={{ width: 15, height: 15, color: 'var(--color-accent)' }} />
+                Step 1: Acoustic Environment Calibration
+              </h3>
+              <p className="step-section__body" style={{ marginBottom: 'var(--space-md)' }}>
+                Before recording, we measure background noise. Sit in a quiet room and click Calibrate — we listen for 2 seconds.
+              </p>
+              <button id="calibrate-btn" onClick={calibrateMicrophone} disabled={isCalibrating} className="btn btn--outline btn--sm">
+                {isCalibrating ? 'Calibrating...' : 'Calibrate Environment'}
+              </button>
+            </section>
+          )}
 
-      {calibrationDone && !isRecording && !audioUrl && (
-        <section className="step-section step-section--success">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
-              <CheckCircle2 style={{ width: 18, height: 18, color: 'var(--color-success)', flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p className="step-section__title" style={{ marginBottom: 'var(--space-2xs)', color: 'var(--color-success)' }}>Environment Calibrated</p>
-                <p className="step-section__body">
-                  Ambient noise: {(calibrationNoise || 0).toFixed(4)} RMS — suitable for biomarker extraction.
+          {calibrationDone && !isRecording && !audioUrl && (
+            <section className="step-section step-section--success">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                  <CheckCircle2 style={{ width: 18, height: 18, color: 'var(--color-success)', flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <p className="step-section__title" style={{ marginBottom: 'var(--space-2xs)', color: 'var(--color-success)' }}>Environment Calibrated</p>
+                    <p className="step-section__body">
+                      Ambient noise: {(calibrationNoise || 0).toFixed(4)} RMS — suitable for biomarker extraction.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className="stat-block__label">Quality Score</span>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--color-success)', margin: '2px 0 0' }}>
+                    {Math.round(100 - (calibrationNoise || 0) * 800)}%
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {noiseWarning && !isRecording && (
+            <section className="step-section step-section--warn">
+              <p className="step-section__body" style={{ display: 'flex', gap: 'var(--space-2xs)', alignItems: 'flex-start' }}>
+                <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
+                {noiseWarning}
+              </p>
+            </section>
+          )}
+
+          {clippingDetected && isRecording && (
+            <section className="step-section step-section--error">
+              <p className="step-section__body">
+                <strong>Microphone clipping detected.</strong> Stand slightly further back to avoid digital distortion.
+              </p>
+            </section>
+          )}
+
+          <section className="step-section">
+            <h3 className="step-section__title">Step 2: Sustained Vowel Vocalization</h3>
+            <p className="step-section__body">
+              Produce a sustained vowel <strong>&quot;ah&quot;</strong> sound for{' '}
+              <strong>10–15 seconds</strong>. Hold the microphone about 6 inches from your mouth and maintain a steady pitch and volume.
+            </p>
+          </section>
+
+          {!uploadProgress && (
+            <section className="step-section">
+              <h3 className="step-section__title">
+                <ShieldCheck style={{ width: 15, height: 15, color: 'var(--color-accent)' }} />
+                Clinical Consent Agreement
+              </h3>
+              <label className="consent-label">
+                <input
+                  id="consent-checkbox"
+                  type="checkbox"
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                />
+                <span>
+                  I understand that VitaVoice is an AI-assisted vocal screening aid and not a definitive medical diagnosis.
+                  I consent to upload my voice recording for vocal dysphonia biomarker screening.
+                </span>
+              </label>
+            </section>
+          )}
+        </div>
+
+        {/* Right Column: Visualizer Canvas / Upload and Action Buttons */}
+        <div className="recorder-layout__col">
+          <div className="visualizer" style={{ marginBottom: 'var(--space-md)' }}>
+            <canvas ref={canvasRef} width={600} height={160} style={{ display: isRecording ? 'block' : 'none' }} />
+            {!isRecording && !audioUrl && (
+              <div
+                className={`drop-zone${dragActive ? ' drop-zone--active' : ''}`}
+                onDragEnter={handleDrag} onDragLeave={handleDrag}
+                onDragOver={handleDrag} onDrop={handleDrop}
+              >
+                <UploadCloud style={{ width: 32, height: 32, color: 'var(--color-ink-3)', marginBottom: 8 }} />
+                <p className="drop-zone__label">
+                  Drag and drop audio here, or{' '}
+                  <label className="drop-zone__browse">
+                    browse files
+                    <input type="file" className="sr-only" accept=".wav,.mp3" onChange={handleFileChange} />
+                  </label>
                 </p>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', margin: '6px 0 0' }}>Supports mono .wav or .mp3</p>
+              </div>
+            )}
+            {!isRecording && audioUrl && (
+              <div className="drop-zone" style={{ background: 'var(--color-paper-2)' }}>
+                <p style={{ fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 var(--space-sm)' }}>
+                  Recording captured ({recordingDuration}s)
+                </p>
+                <audio ref={audioPlayerRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="sr-only" />
+                <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                  <button id="playback-btn" onClick={togglePlayback} className="btn btn--ghost btn--sm">
+                    {isPlaying ? <><Pause style={{ width: 14, height: 14 }} /> Pause</> : <><Play style={{ width: 14, height: 14 }} /> Play Preview</>}
+                  </button>
+                  <button id="delete-recording-btn" onClick={deleteRecording} className="btn btn--danger btn--sm">
+                    <Trash2 style={{ width: 14, height: 14 }} /> Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {isRecording && (
+            <div className="meter" style={{ marginBottom: 'var(--space-md)' }}>
+              <div className="meter__row">
+                <span>Real-time microphone level</span>
+                <span ref={micLevelTextRef} style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>-50.0 dB</span>
+              </div>
+              <div className="meter__track">
+                <div ref={micLevelMeterRef} className="meter__fill" style={{ width: '0%' }} />
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className="stat-block__label">Quality Score</span>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--color-success)', margin: '2px 0 0' }}>
-                {Math.round(100 - (calibrationNoise || 0) * 800)}%
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
+          )}
 
-      {noiseWarning && !isRecording && (
-        <section className="step-section step-section--warn">
-          <p className="step-section__body" style={{ display: 'flex', gap: 'var(--space-2xs)', alignItems: 'flex-start' }}>
-            <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
-            {noiseWarning}
-          </p>
-        </section>
-      )}
-
-      {clippingDetected && isRecording && (
-        <section className="step-section step-section--error">
-          <p className="step-section__body">
-            <strong>Microphone clipping detected.</strong> Stand slightly further back to avoid digital distortion.
-          </p>
-        </section>
-      )}
-
-      <p className="step-section__body" style={{ marginBottom: 'var(--space-md)' }}>
-        Produce a sustained vowel <strong>&quot;ah&quot;</strong> sound for{' '}
-        <strong>10–15 seconds</strong>. Hold the microphone about 6 inches from your mouth.
-      </p>
-
-      <div className="visualizer">
-        <canvas ref={canvasRef} width={600} height={160} style={{ display: isRecording ? 'block' : 'none' }} />
-        {!isRecording && !audioUrl && (
-          <div
-            className={`drop-zone${dragActive ? ' drop-zone--active' : ''}`}
-            onDragEnter={handleDrag} onDragLeave={handleDrag}
-            onDragOver={handleDrag} onDrop={handleDrop}
-          >
-            <UploadCloud style={{ width: 32, height: 32, color: 'var(--color-ink-3)', marginBottom: 8 }} />
-            <p className="drop-zone__label">
-              Drag and drop audio here, or{' '}
-              <label className="drop-zone__browse">
-                browse files
-                <input type="file" className="sr-only" accept=".wav,.mp3" onChange={handleFileChange} />
-              </label>
-            </p>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', margin: '6px 0 0' }}>Supports mono .wav or .mp3</p>
-          </div>
-        )}
-        {!isRecording && audioUrl && (
-          <div className="drop-zone" style={{ background: 'var(--color-paper-2)' }}>
-            <p style={{ fontWeight: 600, color: 'var(--color-ink)', margin: '0 0 var(--space-sm)' }}>
-              Recording captured ({recordingDuration}s)
-            </p>
-            <audio ref={audioPlayerRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="sr-only" />
-            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-              <button id="playback-btn" onClick={togglePlayback} className="btn btn--ghost btn--sm">
-                {isPlaying ? <><Pause style={{ width: 14, height: 14 }} /> Pause</> : <><Play style={{ width: 14, height: 14 }} /> Play Preview</>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+            {!audioBlob ? (
+              <button
+                id="record-btn"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={!calibrationDone}
+                className={`btn btn--primary btn--lg${isRecording ? ' btn--danger' : ''}`}
+                style={{ width: '100%' }}
+              >
+                {isRecording ? (
+                  <><Square style={{ width: 16, height: 16 }} /> Stop Recording (Min 10s)</>
+                ) : (
+                  <><Mic style={{ width: 16, height: 16 }} /> Begin Voice Recording</>
+                )}
               </button>
-              <button id="delete-recording-btn" onClick={deleteRecording} className="btn btn--danger btn--sm">
-                <Trash2 style={{ width: 14, height: 14 }} /> Delete
+            ) : (
+              <button
+                id="submit-screening-btn"
+                onClick={() => uploadAudio(audioBlob)}
+                disabled={uploadProgress || !consentChecked}
+                className="btn btn--primary btn--lg"
+                style={{ width: '100%' }}
+              >
+                {uploadProgress ? 'Processing Voice Biomarkers...' : 'Execute AI Risk Screening'}
               </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {isRecording && (
-        <div className="meter">
-          <div className="meter__row">
-            <span>Real-time microphone level</span>
-            <span ref={micLevelTextRef} style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>-50.0 dB</span>
-          </div>
-          <div className="meter__track">
-            <div ref={micLevelMeterRef} className="meter__fill" style={{ width: '0%' }} />
+            )}
           </div>
         </div>
-      )}
-
-      {!uploadProgress && (
-        <section className="step-section" style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 className="step-section__title">
-            <ShieldCheck style={{ width: 15, height: 15, color: 'var(--color-accent)' }} />
-            Clinical Consent Agreement
-          </h3>
-          <label className="consent-label">
-            <input
-              id="consent-checkbox"
-              type="checkbox"
-              checked={consentChecked}
-              onChange={(e) => setConsentChecked(e.target.checked)}
-            />
-            <span>
-              I understand that VitaVoice is an AI-assisted vocal screening aid and not a definitive medical diagnosis.
-              I consent to upload my voice recording for vocal dysphonia biomarker screening, and I understand this should
-              be reviewed with an Otolaryngologist or Neurologist.
-            </span>
-          </label>
-        </section>
-      )}
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', justifyContent: 'center' }}>
-        {!audioBlob ? (
-          <button
-            id="record-btn"
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={!calibrationDone}
-            className={`btn btn--primary btn--lg${isRecording ? ' btn--danger' : ''}`}
-          >
-            {isRecording ? (
-              <><Square style={{ width: 16, height: 16 }} /> Stop Recording (Min 10s)</>
-            ) : (
-              <><Mic style={{ width: 16, height: 16 }} /> Begin Voice Recording</>
-            )}
-          </button>
-        ) : (
-          <button
-            id="submit-screening-btn"
-            onClick={() => uploadAudio(audioBlob)}
-            disabled={uploadProgress || !consentChecked}
-            className="btn btn--primary btn--lg"
-          >
-            {uploadProgress ? 'Processing Voice Biomarkers...' : 'Execute AI Risk Screening'}
-          </button>
-        )}
       </div>
 
       {errorMsg && (

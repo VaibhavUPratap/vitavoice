@@ -8,27 +8,23 @@ def synthesize_voice_cycle(f0_mean, jitter_pct, shimmer_local, hnr_db, duration=
     """
     Synthesizes a vowel phonation (vocal tract filtered glottal-like pulse train)
     using physical parameter mappings of F0, Jitter, Shimmer, and HNR.
+    Avoids quantization noise by performing continuous phase-based lookup.
     """
-    dt = 1.0 / sr
     total_samples = int(duration * sr)
+    t = np.arange(total_samples) / sr
     
-    # 1. Generate cycle-by-cycle periods T_i and amplitudes A_i
     mean_period = 1.0 / f0_mean
     periods = []
     amplitudes = []
     
     current_time = 0.0
-    # Add random walk or gaussian jitter/shimmer
-    while current_time < duration:
-        # Jitter: cycle period perturbation
-        # jitter_pct is MDVP:Jitter(%), so deviation standard deviation is proportional
-        jitter_dev = (jitter_pct / 100.0) * mean_period
+    while current_time < duration + 0.5:
+        # In parkinsons.data, jitter_pct is stored as a fraction (e.g. 0.00784)
+        jitter_dev = jitter_pct * mean_period
         t_i = mean_period + np.random.normal(0, jitter_dev)
-        # Keep period physically bounds (50Hz to 600Hz)
         t_i = np.clip(t_i, 1.0/600.0, 1.0/50.0)
         
-        # Shimmer: amplitude perturbation
-        # shimmer_local is MDVP:Shimmer, which is absolute shimmer amplitude perturbation
+        # shimmer_local is stored as a fraction (e.g. 0.04374)
         shimmer_dev = shimmer_local * 0.5
         a_i = 1.0 + np.random.normal(0, shimmer_dev)
         a_i = np.clip(a_i, 0.1, 2.0)
@@ -37,38 +33,36 @@ def synthesize_voice_cycle(f0_mean, jitter_pct, shimmer_local, hnr_db, duration=
         amplitudes.append(a_i)
         current_time += t_i
         
-    # 2. Synthesize glottal pulse train
-    y = np.zeros(total_samples)
-    idx = 0
+    t_starts = np.cumsum([0.0] + periods)
     
-    for t_i, a_i in zip(periods, amplitudes):
-        cycle_samples = int(t_i * sr)
-        if cycle_samples <= 0:
-            continue
-        if idx + cycle_samples >= total_samples:
-            break
-            
-        # Glottal pulse approximation: Liljencrants-Fant (LF) model simplified
-        # We can use a windowed sine wave segment or Rosenberg glottal pulse
-        # Rosenberg pulse: y(t) = 3*(t/Tp)^2 - 2*(t/Tp)^3 during open phase, then decays
-        tp = int(0.6 * cycle_samples) # Open phase
-        tr = int(0.15 * cycle_samples) # Return phase
-        
-        cycle_waveform = np.zeros(cycle_samples)
-        for t_s in range(cycle_samples):
-            if t_s < tp:
-                cycle_waveform[t_s] = 3 * (t_s / tp)**2 - 2 * (t_s / tp)**3
-            elif t_s < tp + tr:
-                cycle_waveform[t_s] = 1 - ((t_s - tp) / tr)
-            # remaining closed phase is 0
-            
-        # Scale amplitude
-        y[idx : idx + cycle_samples] = a_i * cycle_waveform
-        idx += cycle_samples
-        
+    # Continuous phase lookup: find which cycle each sample belongs to
+    cycle_indices = np.searchsorted(t_starts, t) - 1
+    cycle_indices = np.clip(cycle_indices, 0, len(periods) - 1)
+    
+    t_start = t_starts[cycle_indices]
+    t_i_arr = np.array(periods)[cycle_indices]
+    a_i_arr = np.array(amplitudes)[cycle_indices]
+    
+    t_rel = t - t_start
+    theta = t_rel / t_i_arr
+    
+    # Rosenberg glottal pulse waveform
+    y = np.zeros(total_samples)
+    
+    # Open phase (theta < 0.6)
+    open_mask = (theta < 0.6)
+    y[open_mask] = 3 * (theta[open_mask] / 0.6)**2 - 2 * (theta[open_mask] / 0.6)**3
+    
+    # Return phase (0.6 <= theta < 0.75)
+    return_mask = (theta >= 0.6) & (theta < 0.75)
+    y[return_mask] = 1.0 - ((theta[return_mask] - 0.6) / 0.15)
+    
+    # Closed phase (theta >= 0.75) is already 0
+    
+    # Scale amplitudes
+    y = y * a_i_arr
+    
     # 3. Add white noise according to HNR
-    # HNR = 10 * log10(signal_power / noise_power)
-    # => noise_power = signal_power * 10^(-HNR/10)
     sig_power = np.mean(y**2)
     if sig_power > 0:
         noise_power = sig_power * (10 ** (-hnr_db / 10.0))
@@ -85,10 +79,9 @@ def synthesize_voice_cycle(f0_mean, jitter_pct, shimmer_local, hnr_db, duration=
     
     y_filtered = y_noise
     for f, b in zip(formants, bandwidths):
-        # Design a 2nd order resonator bandpass filter
         r = np.exp(-np.pi * b / sr)
-        theta = 2 * np.pi * f / sr
-        a = [1.0, -2.0 * r * np.cos(theta), r * r]
+        theta_f = 2 * np.pi * f / sr
+        a = [1.0, -2.0 * r * np.cos(theta_f), r * r]
         b_coef = [1.0 - r] # normalization
         y_filtered = lfilter(b_coef, a, y_filtered)
         

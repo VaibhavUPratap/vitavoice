@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity } from 'lucide-react';
 
-/** Interactive Vocal Signal & Feature Analyzer component — replaces the 3D canvas torus */
+/** Interactive Vocal Signal & Feature Analyzer component — styled as a Lumen Apparatus */
 export function LandingVisual() {
   const containerRef = useRef<HTMLDivElement>(null);
   const path1Ref = useRef<SVGPathElement>(null);
@@ -25,33 +25,28 @@ export function LandingVisual() {
     const container = containerRef.current;
     if (!container) return;
 
-    // Track mouse coordinates
     const onMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       mouseRef.current = { x, y, clientX: e.clientX, clientY: e.clientY, active: true };
 
-      // Update vertical scanner line and cursor dot position in DOM directly for 60fps performance
       if (scanlineRef.current) {
         scanlineRef.current.setAttribute('x1', `${x}`);
         scanlineRef.current.setAttribute('x2', `${x}`);
-        scanlineRef.current.style.opacity = '1';
+        scanlineRef.current.style.opacity = '0.5';
       }
 
-      // Estimate a point on the main wave path to place the cursor dot
       const width = rect.width;
       const height = rect.height;
       const cy = height * 0.5;
       const normX = x / width;
       const phase = phaseRef.current;
 
-      // Calculate path1's y-coordinate at this X to make the dot stick to the wave
       const baseWave = Math.sin(normX * 8 + phase) * 22;
       const subHarmonic = Math.cos(normX * 16 - phase * 0.7) * 8;
       let waveY = cy + baseWave + subHarmonic;
 
-      // Add mouse proximity warp (local ripple)
       const ripple = Math.sin(normX * 120 + phase * 3.5) * 4;
       waveY += ripple;
 
@@ -61,15 +56,14 @@ export function LandingVisual() {
         cursorDotRef.current.style.opacity = '1';
       }
 
-      // Update tooltip content and position
       if (tooltipRef.current) {
-        const estFreq = Math.round(85 + normX * 170); // simulated fundamental frequency (F0)
-        const estDb = (-12 - (y / height) * 18).toFixed(1); // simulated decibels
+        const estFreq = Math.round(85 + normX * 170);
+        const estDb = (-12 - (y / height) * 18).toFixed(1);
         tooltipRef.current.style.transform = `translate(${x + 12}px, ${y - 48}px)`;
         tooltipRef.current.style.opacity = '1';
         tooltipRef.current.innerHTML = `
-          <div class="vocal-tooltip__title">f₀: ${estFreq} Hz</div>
-          <div class="vocal-tooltip__meta">amp: ${estDb} dB</div>
+          <div class="vocal-tooltip__title">F0: ${estFreq} HZ</div>
+          <div class="vocal-tooltip__meta">AMP: ${estDb} DB</div>
         `;
       }
     };
@@ -91,7 +85,6 @@ export function LandingVisual() {
   }, []);
 
   useEffect(() => {
-    // Generate paths for three overlapping wave shapes
     const draw = () => {
       const container = containerRef.current;
       if (!container) return;
@@ -101,13 +94,12 @@ export function LandingVisual() {
       const cy = h * 0.5;
 
       if (!reducedMotion) {
-        phaseRef.current += 0.035;
+        phaseRef.current += 0.025;
       }
 
       const phase = phaseRef.current;
       const mouse = mouseRef.current;
 
-      // Build SVG path strings
       let d1 = '';
       let d2 = '';
       let d3 = '';
@@ -117,26 +109,21 @@ export function LandingVisual() {
         const normX = i / steps;
         const x = normX * w;
 
-        // Wave 1: Principal wave (electric cobalt)
         let base1 = Math.sin(normX * 8 + phase) * 22;
         let sub1 = Math.cos(normX * 16 - phase * 0.7) * 8;
 
-        // Wave 2: Harmonic wave (teal accent)
         let base2 = Math.sin(normX * 11 - phase * 1.2) * 16;
         let sub2 = Math.cos(normX * 22 + phase * 0.5) * 5;
 
-        // Wave 3: Background noise floor (gray/ink)
         let base3 = Math.cos(normX * 5 + phase * 0.3) * 10;
         let sub3 = Math.sin(normX * 13 + phase * 1.5) * 3;
 
-        // Proximity warp logic: if mouse is active, perturb waves near the mouse X
         if (mouse.active) {
           const mouseNormX = mouse.x / w;
           const dist = Math.abs(normX - mouseNormX);
-          const influence = Math.exp(-Math.pow(dist * 7, 2)); // Gaussian envelope
+          const influence = Math.exp(-Math.pow(dist * 7, 2));
 
           if (influence > 0.01) {
-            // High frequency vocal jitter modulation
             const ripple = Math.sin(normX * 120 + phase * 3.5) * 4;
             base1 += ripple * influence;
             base2 += ripple * 0.7 * influence;
@@ -177,11 +164,11 @@ export function LandingVisual() {
       <div className="vocal-analyzer__header">
         <div className="vocal-analyzer__title-row">
           <Activity className="vocal-analyzer__icon" />
-          <span className="vocal-analyzer__title">vocal.spectral_map_v2</span>
+          <span className="vocal-analyzer__title">VOCAL·SPECTRAL·MAP·V2</span>
         </div>
         <div className="vocal-analyzer__status">
           <span className="vocal-analyzer__led" />
-          <span>Nominal</span>
+          <span>NOMINAL</span>
         </div>
       </div>
 
@@ -189,8 +176,8 @@ export function LandingVisual() {
       <div className="vocal-analyzer__meta-bar">
         <span>SR: 16,000 HZ</span>
         <span>CHANNEL: CH_01</span>
-        <span>GAIN: AUTO</span>
-        <span>F0: STABLE</span>
+        <span>GAIN: CALIBRATED</span>
+        <span>F0: LOCK</span>
       </div>
 
       {/* 3. Waveform display area */}
@@ -201,32 +188,48 @@ export function LandingVisual() {
         {/* Dynamic SVG waves */}
         <svg className="vocal-analyzer__svg" viewBox="0 0 100% 100%" preserveAspectRatio="none">
           <defs>
-            <linearGradient id="cobaltGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="oklch(62% 0.15 220)" stopOpacity="0.4" />
+            <linearGradient id="brassGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="oklch(62% 0.12 50)" stopOpacity="0.3" />
               <stop offset="50%" stopColor="var(--color-accent)" stopOpacity="1" />
-              <stop offset="100%" stopColor="oklch(58% 0.20 256)" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="oklch(76% 0.17 50)" stopOpacity="0.3" />
             </linearGradient>
-            <linearGradient id="tealGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="oklch(70% 0.12 170)" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="oklch(62% 0.14 200)" stopOpacity="0.8" />
+            <linearGradient id="coralGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="oklch(58% 0.14 18)" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="var(--color-accent-2)" stopOpacity="0.75" />
             </linearGradient>
           </defs>
 
           {/* Background voice envelope range */}
-          <rect x="0" y="25%" width="100%" height="50%" fill="oklch(58% 0.20 256 / 0.03)" />
+          <rect x="0" y="25%" width="100%" height="50%" fill="oklch(76% 0.17 50 / 0.02)" />
 
           {/* Paths */}
-          <path ref={path3Ref} fill="none" stroke="oklch(52% 0.012 256)" strokeWidth="1" strokeDasharray="3 3" opacity="0.35" />
-          <path ref={path2Ref} fill="none" stroke="url(#tealGradient)" strokeWidth="1.5" opacity="0.65" />
-          <path ref={path1Ref} fill="none" stroke="url(#cobaltGradient)" strokeWidth="2.5" />
+          <path ref={path3Ref} fill="none" stroke="oklch(62% 0.010 262)" strokeWidth="1" strokeDasharray="3 3" opacity="0.25" />
+          <path ref={path2Ref} fill="none" stroke="url(#coralGradient)" strokeWidth="1.5" opacity="0.5" />
+          <path ref={path1Ref} fill="none" stroke="url(#brassGradient)" strokeWidth="2.2" />
 
           {/* Interactive cursor lines/dots (DOM-manipulated) */}
-          <line ref={scanlineRef} x1="0" y1="0" x2="0" y2="100%" stroke="var(--color-accent)" strokeWidth="1" strokeDasharray="2 2" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
-          <circle ref={cursorDotRef} r="5" fill="var(--color-accent)" stroke="var(--color-paper)" strokeWidth="2" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
+          <line ref={scanlineRef} x1="0" y1="0" x2="0" y2="100%" stroke="var(--color-accent-2)" strokeWidth="1" strokeDasharray="2 2" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
+          <circle ref={cursorDotRef} r="4" fill="var(--color-accent-2)" stroke="var(--color-paper)" strokeWidth="1.5" style={{ opacity: 0, transition: 'opacity 0.2s' }} />
         </svg>
 
         {/* Floating tooltip */}
         <div ref={tooltipRef} className="vocal-tooltip" style={{ opacity: 0 }} />
+
+        {/* Horizontal leader-line callouts (Lumen signature) */}
+        <ul className="callouts">
+          <li className="callout callout--left" style={{ top: '22%' }}>
+            <span>JITTER · 0.38%</span>
+          </li>
+          <li className="callout callout--left" style={{ top: '78%' }}>
+            <span>SHIMMER · 2.42%</span>
+          </li>
+          <li className="callout callout--right" style={{ top: '35%' }}>
+            <span>HNR · 26.8 DB</span>
+          </li>
+          <li className="callout callout--right" style={{ top: '65%' }}>
+            <span>WAVLM · 768 DIM</span>
+          </li>
+        </ul>
 
         {/* Mini 2D PCA Cluster Map on top-right */}
         <div className="vocal-mini-pca">
@@ -262,9 +265,9 @@ export function LandingVisual() {
           </div>
         </div>
         <div className="vocal-mini-card">
-          <div className="vocal-mini-card__label">HNR (dB)</div>
+          <div className="vocal-mini-card__label">HNR (DB)</div>
           <div className="vocal-mini-card__row">
-            <span className="vocal-mini-card__value">26.8 dB</span>
+            <span className="vocal-mini-card__value">26.8 DB</span>
             <span className="vocal-mini-card__badge vocal-mini-card__badge--ok">STABLE</span>
           </div>
         </div>

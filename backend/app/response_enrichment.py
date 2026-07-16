@@ -375,7 +375,7 @@ def _compute_biomarker_statuses(clinical_metrics: dict) -> list:
         if ref.get("is_fraction"):
             display_value = value * 100.0
 
-        status = ref["status_fn"](value)
+        status = ref["status_fn"](value)  # type: ignore[operator]
 
         statuses.append({
             "key": key,

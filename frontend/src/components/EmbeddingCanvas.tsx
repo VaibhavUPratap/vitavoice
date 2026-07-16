@@ -140,31 +140,99 @@ export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded
       if (coordsValid) {
         const uCx = mapX(userX, width);
         const uCy = mapY(userY, height);
-        pulseRef.current = (pulseRef.current + 0.08) % (2 * Math.PI);
-        const pulseSize = 6 + Math.sin(pulseRef.current) * 4;
-        const alpha = 0.35 - Math.sin(pulseRef.current) * 0.15;
+        pulseRef.current = (pulseRef.current + 0.04) % (2 * Math.PI);
+        const time = pulseRef.current;
 
+        // Draw crosshair scanning lines
+        ctx.strokeStyle = 'oklch(58% 0.20 256 / 0.45)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        
+        // Horizontal scan line
         ctx.beginPath();
-        ctx.arc(uCx, uCy, pulseSize * 2, 0, Math.PI * 2);
-        ctx.fillStyle = `oklch(58% 0.20 256 / ${alpha})`;
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(uCx, uCy, 7, 0, Math.PI * 2);
-        ctx.fillStyle = 'oklch(58% 0.20 256)';
-        ctx.fill();
-        ctx.strokeStyle = 'oklch(96% 0.005 250)';
-        ctx.lineWidth = 2;
+        ctx.moveTo(pad, uCy);
+        ctx.lineTo(width - pad, uCy);
         ctx.stroke();
 
-        ctx.fillStyle = 'oklch(88% 0.008 258)';
-        ctx.font = '600 10px "JetBrains Mono", monospace';
-        const label = 'Your voice';
+        // Vertical scan line
+        ctx.beginPath();
+        ctx.moveTo(uCx, pad);
+        ctx.lineTo(uCx, height - pad);
+        ctx.stroke();
+
+        // Reset line dash
+        ctx.setLineDash([]);
+
+        // Scanning ring expanding outward
+        const scanRingRadius = ((time * 25) % 40) + 10;
+        const scanRingAlpha = 1 - (scanRingRadius - 10) / 40;
+        ctx.beginPath();
+        ctx.arc(uCx, uCy, scanRingRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `oklch(58% 0.20 256 / ${scanRingAlpha * 0.6})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // High-tech target corner brackets around "Your Voice"
+        const boxSize = 10;
+        ctx.strokeStyle = 'oklch(58% 0.20 256)';
+        ctx.lineWidth = 1.5;
+        
+        // Top-left corner
+        ctx.beginPath();
+        ctx.moveTo(uCx - boxSize, uCy - boxSize + 3);
+        ctx.lineTo(uCx - boxSize, uCy - boxSize);
+        ctx.lineTo(uCx - boxSize + 3, uCy - boxSize);
+        ctx.stroke();
+
+        // Top-right corner
+        ctx.beginPath();
+        ctx.moveTo(uCx + boxSize - 3, uCy - boxSize);
+        ctx.lineTo(uCx + boxSize, uCy - boxSize);
+        ctx.lineTo(uCx + boxSize, uCy - boxSize + 3);
+        ctx.stroke();
+
+        // Bottom-left corner
+        ctx.beginPath();
+        ctx.moveTo(uCx - boxSize, uCy + boxSize - 3);
+        ctx.lineTo(uCx - boxSize, uCy + boxSize);
+        ctx.lineTo(uCx - boxSize + 3, uCy + boxSize);
+        ctx.stroke();
+
+        // Bottom-right corner
+        ctx.beginPath();
+        ctx.moveTo(uCx + boxSize - 3, uCy + boxSize);
+        ctx.lineTo(uCx + boxSize, uCy + boxSize);
+        ctx.lineTo(uCx + boxSize, uCy + boxSize - 3);
+        ctx.stroke();
+
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(uCx, uCy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'oklch(58% 0.20 256)';
+        ctx.fill();
+
+        // Inner solid core ring
+        ctx.beginPath();
+        ctx.arc(uCx, uCy, 5, 0, Math.PI * 2);
+        ctx.strokeStyle = 'oklch(96% 0.005 250)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Display coordinate overlay
+        ctx.fillStyle = 'oklch(58% 0.20 256)';
+        ctx.font = '700 8px "JetBrains Mono", monospace';
+        const coordText = `f_lat: [${userX.toFixed(3)}, ${userY.toFixed(3)}]`;
+        ctx.fillText(coordText, uCx + 12, uCy + 14);
+
+        // Label
+        ctx.fillStyle = 'oklch(96% 0.005 250)';
+        ctx.font = '600 10px "Space Grotesk", sans-serif';
+        const label = 'YOUR VOICE';
         const labelW = ctx.measureText(label).width;
         let lx = uCx + 12;
-        let ly = uCy - 10;
+        let ly = uCy - 8;
         if (lx + labelW > width - pad) lx = uCx - labelW - 12;
-        if (ly < pad) ly = uCy + 16;
+        if (ly < pad) ly = uCy + 22;
         ctx.fillText(label, lx, ly);
       }
 
@@ -224,8 +292,8 @@ export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded
     <div className="card embedding-card">
       <div className="embedding-card__head">
         <div>
-          <p className="card__label" style={{ marginBottom: 'var(--space-2xs)' }}>Vocal embedding space</p>
-          <p className="embedding-card__sub">WavLM Base projected to 2D via PCA</p>
+          <p className="card__label" style={{ marginBottom: 'var(--space-2xs)' }}>Deep Speech Latent Topology Space</p>
+          <p className="embedding-card__sub">WavLM Neural Embedding Cluster Map</p>
         </div>
         <button
           type="button"

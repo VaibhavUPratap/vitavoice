@@ -33,8 +33,17 @@ The dataset provides 22 continuous acoustic features extracted from the voice re
 | `Shimmer:APQ5` | Five-point amplitude perturbation quotient | Percentage (%) | < 2.5% |
 | `MDVP:APQ` | 11-point amplitude perturbation quotient | Percentage (%) | < 3.0% |
 | `Shimmer:DDA` | Average absolute difference of amplitudes | Percentage (%) | < 6.0% |
-| `NHR` | Noise-to-Harmonics Ratio | Ratio | < 0.05 |
+| `NHR` | Noise-to-Harmonics Ratio | Ratio | < 0.19 |
 | `HNR` | Harmonics-to-Noise Ratio | Decibels (dB) | > 20 dB |
+| `Energy` | RMS vocal energy (loudness measure) | Amplitude | Variable |
+| `F1` | First formant frequency (vocal tract resonance) | Hertz (Hz) | Variable (approx. 250-1000Hz) |
+| `F2` | Second formant frequency (vocal tract resonance) | Hertz (Hz) | Variable (approx. 800-2500Hz) |
+| `F3` | Third formant frequency (vocal tract resonance) | Hertz (Hz) | Variable (approx. 1500-3500Hz) |
+| `Spectral_Centroid` | Mean frequency of the spectrum | Hertz (Hz) | Variable |
+| `Spectral_Bandwidth` | Width of the spectrum | Hertz (Hz) | Variable |
+| `Zero_Crossing_Rate` | Rate of sign changes in the signal | Hz / frame | Variable |
+| `MFCC_1` to `MFCC_13` | Mel-frequency cepstral coefficients (vocal tract shape) | Power | Variable |
+| `Chroma_1` to `Chroma_12` | 12-semitone pitch profile of the vocalization | Energy | Variable |
 
 ---
 

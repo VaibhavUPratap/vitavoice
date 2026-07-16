@@ -145,5 +145,36 @@ def test_rate_limiting_endpoint():
                 # The first few requests should be 200
                 assert status_codes[0] == 200
 
+def test_download_screening_report_placeholder():
+    response = client.get("/api/v1/analysis/download-pdf/missing_prediction_id")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "Placeholder for PDF" in data["message"]
+
+def test_download_screening_report_file_exists():
+    os.makedirs(settings.REPORTS_DIR, exist_ok=True)
+    test_id = "test_download_id"
+    test_pdf_path = os.path.join(settings.REPORTS_DIR, f"report_{test_id}.pdf")
+    with open(test_pdf_path, "w") as f:
+        f.write("dummy pdf content")
+        
+    try:
+        response = client.get(f"/api/v1/analysis/download-pdf/{test_id}")
+        assert response.status_code == 200
+        assert response.content == b"dummy pdf content"
+    finally:
+        if os.path.exists(test_pdf_path):
+            os.remove(test_pdf_path)
+
+def test_get_clinical_copilot_insight():
+    payload = {"audio_id": "test_audio_id"}
+    response = client.post("/api/v1/analysis/copilot-insight", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "summary" in data
+    assert "citations" in data
+    assert data["is_fallback"] is True
+
 if __name__ == "__main__":
     pytest.main([__file__])

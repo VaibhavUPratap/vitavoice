@@ -14,10 +14,12 @@ By combining **clinical acoustic digital signal processing** with **modern trans
 ## ✨ Key Features
 
 - **Interactive Vocal Signal & Feature Analyzer**: Live canvas-less SVG spectrogram visualizer on the home page responding directly to mouse gestures with real-time frequency/amplitude tooltips.
-- **Hybrid Acoustic & Neural Pipeline**: Extracts 20 classical acoustic perturbation biomarkers (Jitter, Shimmer, HNR, F0 fundamental frequencies) and 16 high-dimensional WavLM Base transformer embedding components.
+- **Pre-Inference Quality Guardrails**: Standardizes audio inputs by analyzing background noise, Signal-to-Noise Ratio (SNR), and clipping prior to model prediction to flag low-quality recordings.
+- **Decoupled Acoustic & Neural Pipeline**: Extracts 48 clinical acoustic biomarkers (Jitter, Shimmer, HNR, F0 fundamental pitch, Formants, Energy, Spectral features, MFCCs, and Chroma) for highly generalizable Random Forest classification, and leverages 768-dimensional WavLM Base embeddings for 2D visual cluster maps.
 - **Explainable AI (SHAP)**: Provides a feature-by-feature SHAP importance analysis showing which vocal biomarkers contribute positively or negatively to the risk score.
 - **Interactive PCA Embedding Space**: Visualizes the patient's voice coordinate relative to reference healthy control and pathology cohorts on a 2D cluster map.
-- **PDF Report Generator**: Generates clean, clinical-grade PDF reports with patient summaries, biomarker charts, and recommendation paths.
+- **Clinical Response Enrichment**: Translates raw machine learning scores into margin-based confidence levels, risk-stratified actionable plans/recommendations, and natural language explanations.
+- **PDF Report Generator**: Generates clean, clinical-grade PDF reports with patient summaries, recording quality stats, biomarker charts, and recommendation paths.
 
 ---
 
@@ -31,38 +33,44 @@ By combining **clinical acoustic digital signal processing** with **modern trans
                                         ▼
                           ┌──────────────────────────┐
                           │   Audio Preprocessing    │
-                          │ (16kHz, Resampling, Noise)│
-                          └─────────────┬────────────┘
-                                        │
-                      ┌─────────────────┴─────────────────┐
-                      ▼                                   ▼
-        ┌───────────────────────────┐       ┌───────────────────────────┐
-        │  Clinical Perturbation    │       │    WavLM Base Embedding   │
-        │ (Jitter, Shimmer, HNR...) │       │  (microsoft/wavlm-base)   │
-        └─────────────┬─────────────┘       └─────────────┬─────────────┘
-                      │                                   │ (768-dim PCA)
-                      ▼                                   ▼
-        ┌───────────────────────────┐       ┌───────────────────────────┐
-        │   20 Acoustic Features    │       │     16 PCA Components     │
-        └─────────────┬─────────────┘       └─────────────┬─────────────┘
-                      │                                   │
-                      └─────────────────┬─────────────────┘
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │   36-Feature Biomap      │
+                          │(16kHz, Resampling, Noise)│
                           └─────────────┬────────────┘
                                         │
                                         ▼
                           ┌──────────────────────────┐
-                          │   SVM Ensemble Model     │
+                          │ Recording Quality Check  │
+                          │  (SNR, Noise, Clipping)  │
                           └─────────────┬────────────┘
                                         │
                                         ▼
-                          ┌──────────────────────────┐
-                          │   Clinical Report, SHAP  │
-                          │   & 2D PCA Cluster Map   │
-                          └──────────────────────────┘
+                       ┌─────────────────┴─────────────────┐
+                       ▼                                   ▼
+         ┌───────────────────────────┐       ┌───────────────────────────┐
+         │  Clinical Perturbation    │       │    WavLM Base Embedding   │
+         │ (Jitter, Shimmer, HNR...) │       │  (microsoft/wavlm-base)   │
+         └─────────────┬─────────────┘       └─────────────┬─────────────┘
+                       │                                   │ (768-dim PCA)
+                       ▼                                   ▼
+         ┌───────────────────────────┐       ┌───────────────────────────┐
+         │   48 Acoustic Features    │       │   2D Cluster Coordinates  │
+         └─────────────┬─────────────┘       └─────────────┬─────────────┘
+                       │                                   │
+                       ▼                                   ▼
+         ┌───────────────────────────┐       ┌───────────────────────────┐
+         │  Random Forest Classifier │       │   2D PCA Cluster Map      │
+         └─────────────┬─────────────┘       └───────────────────────────┘
+                       │
+                       ▼
+         ┌───────────────────────────┐
+         │   Response Enrichment     │
+         │ (Calibrated Explanations) │
+         └─────────────┬─────────────┘
+                       │
+                       ▼
+         ┌───────────────────────────┐
+         │   Clinical Report, SHAP   │
+         │     & Report PDF File     │
+         └───────────────────────────┘
 ```
 
 ---
@@ -104,8 +112,8 @@ The frontend dashboard will be available at [http://localhost:5173](http://local
 
 For detailed local setup, directories, architecture, and development guidelines, refer to the documents below:
 
-- **Local Installation & Setup**: [developer_guide.md](file:///d:/Projects/vitavoice/docs/developer_guide.md)
-- **Architecture Details**: [architecture.md](file:///d:/Projects/vitavoice/docs/architecture.md)
-- **Dataset Reference (Oxford Parkinson's)**: [dataset_info.md](file:///d:/Projects/vitavoice/docs/dataset_info.md)
-- **Model Details**: [model_card.md](file:///d:/Projects/vitavoice/docs/model_card.md)
-- **Responsible AI Framework**: [responsible_ai.md](file:///d:/Projects/vitavoice/docs/responsible_ai.md)
+- **Local Installation & Setup**: [developer_guide.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/developer_guide.md)
+- **Architecture Details**: [architecture.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/architecture.md)
+- **Dataset Reference (Oxford Parkinson's)**: [dataset_info.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/dataset_info.md)
+- **Model Details**: [model_card.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/model_card.md)
+- **Responsible AI Framework**: [responsible_ai.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/responsible_ai.md)

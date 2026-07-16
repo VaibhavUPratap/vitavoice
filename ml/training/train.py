@@ -12,8 +12,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
 
 # Local dataset loaders
 from ml.data.oxford_loader import OxfordDatasetLoader
@@ -90,9 +88,10 @@ def train_vita_voice(dataset_type="oxford", root_dir="datasets", reduction_metho
     joblib.dump(reducer, os.path.join(checkpoints_dir, "reducer.joblib"))
     joblib.dump(reduction_method, os.path.join(checkpoints_dir, "reduction_method.joblib"))
     
-    # 4. Concatenate Acoustic + Reduced Embeddings
-    X_fused = np.hstack((X_cli, X_w2v_reduced))
-    print(f"Fused feature matrix shape: {X_fused.shape}")
+    # 4. Use Clinical Acoustic Features for Classifier training
+    # (We decouple WavLM neural embeddings to prevent OOD bias from corrupting real audio predictions)
+    X_fused = X_cli
+    print(f"Feature matrix shape for classification: {X_fused.shape}")
     
     # Scale features
     scaler = StandardScaler()
@@ -102,12 +101,10 @@ def train_vita_voice(dataset_type="oxford", root_dir="datasets", reduction_metho
     # Save a copy of training scaled dataset to use as background for SHAP Explainer
     joblib.dump(X_scaled, os.path.join(checkpoints_dir, "background_data.joblib"))
     
-    # 5. Define Benchmark Classifiers
+    # 5. Define Benchmark Classifiers (Omitting OpenMP-conflicting XGBoost/LightGBM)
     models = {
         'svm': SVC(kernel='rbf', C=2.0, probability=True, random_state=42),
         'random_forest': RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42),
-        'xgboost': XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, eval_metric='logloss', random_state=42),
-        'lightgbm': LGBMClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, random_state=42, verbose=-1),
         'logistic_regression': LogisticRegression(C=1.0, max_iter=1000, random_state=42)
     }
     

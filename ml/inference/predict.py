@@ -82,11 +82,9 @@ class VitaVoicePredictor:
         else:
             w2v_reduced = w2v_emb
             
-        # 5. Concatenate
-        features = np.hstack((cli_vec, w2v_reduced))
-        
+        # 5. Skip concatenation for classification (use robust clinical features only)
         # 6. Standardize scale
-        features_scaled = self.scaler.transform(features.reshape(1, -1))
+        features_scaled = self.scaler.transform(cli_vec.reshape(1, -1))
         
         # 7. Predict risk score
         probabilities = self.model.predict_proba(features_scaled)[0]

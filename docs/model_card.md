@@ -1,4 +1,4 @@
-# VitaVoice Model Card: Hybrid Vocal Biomarker Ensemble
+# VitaVoice Model Card: Decoupled Clinical Acoustic Classifier
 
 This model card details the model architecture, training configuration, performance metrics, and evaluation results of the VitaVoice screening model.
 
@@ -6,12 +6,12 @@ This model card details the model architecture, training configuration, performa
 
 ## Model Details
 
-- **Model Name**: VitaVoice-SVC-Ensemble-v2
-- **Model Type**: Hybrid Feature Fusion Ensemble (Clinical Acoustic + Deep Speech Representations)
-- **Primary Algorithm**: Support Vector Classifier (SVC) Ensemble
-- **Pretrained Neural Encoder**: `microsoft/wavlm-base` (Mean-pooled hidden state embeddings, 768-dimensions)
+- **Model Name**: VitaVoice-RandomForest-v2
+- **Model Type**: Decoupled Clinical Acoustic Classifier (with WavLM Base Neural 2D Visualizer Mapping)
+- **Primary Algorithm**: Random Forest Classifier
+- **Pretrained Neural Encoder**: `microsoft/wavlm-base` (Mean-pooled hidden state embeddings, 768-dimensions; used exclusively for 2D visual cohort cluster plotting)
 - **Checkpoints Directory**: `ml/checkpoints/`
-- **Release Date**: June 2026
+- **Release Date**: July 2026
 
 ---
 
@@ -28,29 +28,29 @@ This model card details the model architecture, training configuration, performa
 - **Primary Dataset**: Oxford Parkinson's Disease Laryngeal/Vocal Dataset (Little et al., 2008).
 - **Cohort Composition**: 195 voice recordings from 31 subjects (23 diagnosed with Parkinson's Disease, 8 healthy controls).
 - **Phonation Protocol**: Sustained vowel phonation of the letter "ah" (vowel `/a/`) recorded at a constant pitch and volume.
-- **Data Partitions**: 80% Training / 20% Holdout Testing (Stratified on subject to prevent data leakage).
+- **Data Partitions**: 5-Fold Stratified Cross-Validation on the full cohort.
 
 ---
 
 ## Features & Preprocessing
 
-The model operates on a fused **43-dimensional representation**:
-1. **23 Clinical Acoustic Metrics**: F0 mean, jitter metrics (RAP, PPQ, DDP), shimmer metrics (APQ, DDA), Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), Formants (F1-F3), and Zero-Crossing Rate.
-2. **20 Neural Embeddings**: A 768-dimensional WavLM Base vector compressed to 10 principal components via PCA/UMAP.
+The model decouples the classification feature space from the visualization embedding space:
+1. **48 Clinical Acoustic Classification Features**: Average, minimum, and maximum pitch ($F0$), local jitter, jitter RAP, jitter PPQ, jitter DDP, absolute jitter, local shimmer, shimmer dB, shimmer APQ3, shimmer APQ5, shimmer APQ11, shimmer DDA, Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), RMS energy, Formants ($F1$-$F3$), spectral centroid, spectral bandwidth, zero-crossing rate, 13 MFCCs, and 12 Chroma pitch features.
+2. **WavLM Base Neural Coordinates (Visualization Only)**: A 768-dimensional WavLM Base vector compressed to 2 coordinates via PCA for visual cohort mapping on the UI.
 
 ---
 
 ## Performance Metrics
 
-Evaluation on the Oxford Holdout Test set:
+Evaluation using 5-Fold Stratified Cross-Validation:
 
-| Metric | Score | Confidence Interval (95%) |
-| :--- | :--- | :--- |
-| **Accuracy** | 89.7% | 85.2% - 94.1% |
-| **F1 Score** | 92.1% | 88.5% - 95.8% |
-| **Sensitivity (Recall)** | 93.3% | 89.2% - 97.4% |
-| **Specificity** | 80.0% | 72.1% - 87.9% |
-| **AUC-ROC** | 91.5% | 87.0% - 96.0% |
+| Metric | Score |
+| :--- | :--- |
+| **Accuracy** | 86.15% |
+| **Precision** | 87.34% |
+| **Sensitivity (Recall)** | 95.98% |
+| **F1 Score** | 91.33% |
+| **AUC-ROC** | 88.22% |
 
 ---
 
