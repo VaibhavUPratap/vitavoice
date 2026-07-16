@@ -15,10 +15,12 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 
 # Import local backend configurations and utilities
-from backend.app.config import settings
-from backend.app.report_generator import generate_clinical_report
-from backend.app.recording_quality import analyze_recording_quality
-from backend.app.response_enrichment import enrich_response
+from app.config import settings
+from app.report_generator import generate_clinical_report
+from app.recording_quality import analyze_recording_quality
+from app.response_enrichment import enrich_response
+import sys
+sys.path.insert(0, '/Users/vaibhav/Documents/Projects/vitavoice')
 from ml.inference.predict import VitaVoicePredictor
 from ml.training.train import train_vita_voice
 

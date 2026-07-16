@@ -52,6 +52,10 @@ vitavoice/
    ```bash
    python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
    ```
+   If port 8000 is already in use, specify a different port:
+   ```bash
+   python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+   ```
 
 ### Frontend Setup (Node.js)
 1. Navigate to the frontend directory:

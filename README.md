@@ -97,6 +97,11 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 The backend API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
+**Note:** If port 8000 is already in use, use a different port:
+```bash
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
 ### 2. Start the Vite Frontend
 In a new terminal window, navigate to the `frontend` directory, install packages, and run the Vite development server:
 ```bash
