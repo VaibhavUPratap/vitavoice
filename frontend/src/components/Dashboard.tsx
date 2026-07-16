@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Activity, ShieldAlert, RefreshCw, Printer, FileText,
+  ShieldAlert, RefreshCw, Printer, FileText,
   Stethoscope, Brain, AlertTriangle, Mic, BarChart3,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -75,11 +75,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
   const riskScore = data.risk_score as number;
   const embeddingCoords = data.embedding_coords as [number, number];
   const report = data.report as Record<string, unknown>;
-  const clinicalMetrics = data.clinical_metrics as Record<string, number>;
   const biomarkerAnalysis = report.biomarker_analysis as Array<Record<string, string>>;
   const recommendations = report.recommendations as string[];
   const shapExplanation = report.shap_explanation as Array<Record<string, unknown>> | undefined;
-  const confidenceCalibration = report.confidence_calibration as Record<string, unknown> | undefined;
   const reportUrl = data.report_url as string | undefined;
 
   // New enriched data
