@@ -8,6 +8,13 @@ from ml.preprocessing.audio import AudioPreprocessingPipeline
 from ml.feature_extraction.acoustic import extract_all_acoustic_features
 from ml.feature_extraction.embeddings import extract_wav2vec2_embeddings, project_embedding_2d
 
+# Import new WavLM Clinical Intelligence modules
+from ml.inference.wavlm_fingerprint import WavLMFingerprintEngine
+from ml.inference.wavlm_authenticity import RecordingAuthenticityAuditor
+from ml.inference.wavlm_ood import WavLMOODDetector
+from ml.inference.wavlm_quality import WavLMQualityAuditor
+from ml.inference.wavlm_confidence import WavLMConfidenceAuditor
+
 class VitaVoicePredictor:
     def __init__(self, checkpoints_dir="ml/checkpoints"):
         self.checkpoints_dir = checkpoints_dir
@@ -18,7 +25,14 @@ class VitaVoicePredictor:
         self.feature_names = None
         self.model_type = None
         self.background_data = None
-        self.wavlm_intel = None
+        
+        # New modular engines
+        self.fingerprint_engine = WavLMFingerprintEngine(checkpoints_dir=self.checkpoints_dir)
+        self.authenticity_auditor = RecordingAuthenticityAuditor(checkpoints_dir=self.checkpoints_dir)
+        self.ood_detector = WavLMOODDetector(checkpoints_dir=self.checkpoints_dir)
+        self.quality_auditor = WavLMQualityAuditor()
+        self.confidence_auditor = WavLMConfidenceAuditor()
+        
         self.transform_config = None  # Log transform config saved during training
         self.loaded = False
         self.pipeline = AudioPreprocessingPipeline()
@@ -58,13 +72,12 @@ class VitaVoicePredictor:
             else:
                 self.transform_config = None
             
-            # Load WavLM references
-            try:
-                from ml.inference.wavlm_intelligence import WavLMIntelligenceLayer
-                refs_path = os.path.join(self.checkpoints_dir, "wavlm_references.joblib")
-                self.wavlm_intel = WavLMIntelligenceLayer(references_path=refs_path)
-            except Exception as e:
-                print(f"Error loading WavLMIntelligenceLayer: {e}")
+            # Load new WavLM Clinical Intelligence modules
+            self.fingerprint_engine = WavLMFingerprintEngine(checkpoints_dir=self.checkpoints_dir)
+            self.authenticity_auditor = RecordingAuthenticityAuditor(checkpoints_dir=self.checkpoints_dir)
+            self.ood_detector = WavLMOODDetector(checkpoints_dir=self.checkpoints_dir)
+            self.quality_auditor = WavLMQualityAuditor()
+            self.confidence_auditor = WavLMConfidenceAuditor()
                 
             self.loaded = True
             return True
@@ -168,21 +181,29 @@ class VitaVoicePredictor:
                     "quality_warning": None
                 }
                 
-        # 12. Run WavLM Intelligence Layer
-        if self.wavlm_intel is None:
-            from ml.inference.wavlm_intelligence import WavLMIntelligenceLayer
-            refs_path = os.path.join(self.checkpoints_dir, "wavlm_references.joblib")
-            self.wavlm_intel = WavLMIntelligenceLayer(references_path=refs_path)
-            
-        quality_info = self.wavlm_intel.verify_quality(w2v_emb, recording_quality)
-        similarity_info = self.wavlm_intel.compute_similarity(w2v_emb, self.reducer)
-        ood_info = self.wavlm_intel.detect_ood(w2v_emb)
-        decision_info = self.wavlm_intel.run_decision_engine(
-            clinical_risk=risk_score,
-            clinical_confidence=certainty_score,
-            quality_info=quality_info,
-            ood_info=ood_info,
-            similarity_info=similarity_info
+        # 12. Run WavLM Clinical Intelligence Engine
+        # Authenticity
+        auth_info = self.authenticity_auditor.verify_authenticity(audio_path, w2v_emb)
+        
+        # Quality Audit
+        quality_info = self.quality_auditor.audit_quality(
+            w2v_emb, self.fingerprint_engine.train_embeddings, recording_quality
+        )
+        
+        # OOD Detection
+        ood_info = self.ood_detector.detect_ood(w2v_emb)
+        
+        # Fingerprint & Similarity
+        similarity_info = self.fingerprint_engine.compute_similarity(w2v_emb)
+        nearest_neighbors = self.fingerprint_engine.find_nearest_neighbors(w2v_emb, k=5)
+        
+        # Confidence Audit
+        svm_confidence = self.confidence_auditor.evaluate_trust(
+            svm_risk=risk_score,
+            quality_score=quality_info['overall_score'],
+            ood_probability=ood_info['ood_probability'],
+            similarity_matching_score=similarity_info['similarity_parkinsons'],
+            authenticity_score=auth_info['authenticity_score']
         )
         
         return {
@@ -190,6 +211,7 @@ class VitaVoicePredictor:
             'status': status,
             'embedding_coords': [pca_x, pca_y],
             'clinical_metrics': report_metrics,
+            'w2v_embedding': w2v_emb,
             'confidence_calibration': {
                 'risk_probability': risk_score,
                 'certainty_score': certainty_score,
@@ -200,7 +222,9 @@ class VitaVoicePredictor:
             'wavlm_quality': quality_info,
             'wavlm_similarity': similarity_info,
             'wavlm_ood': ood_info,
-            'decision_engine': decision_info
+            'wavlm_authenticity': auth_info,
+            'wavlm_confidence': svm_confidence,
+            'nearest_neighbors': nearest_neighbors
         }
         
     def compute_shap_explanations(self, features_scaled):
