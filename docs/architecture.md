@@ -31,7 +31,7 @@ graph TD
             FE_EXT -->|Speech Foundation Model| F_EMB[WavLM Base Embeddings]
             
             F_CLI -->|3.3 Scaling| SCALED[Scaled Clinical Feature Map]
-            SCALED -->|3.4 Classifier Model| CLF[Random Forest Classifier]
+            SCALED -->|3.4 Classifier Model| CLF[Calibrated SVM Classifier]
             
             F_EMB -->|3.3 PCA 2D| PCA_PROJ[PCA Projection Coordinates]
             
@@ -79,13 +79,13 @@ Before passing raw audio to the machine learning model, a dedicated **Recording 
 To prevent Out-Of-Distribution (OOD) neural embeddings of real-world recordings from biasing the classification engine, the platform implements a decoupled machine learning architecture:
 
 ### Feature Space Definition
-- **Clinical Acoustic Biomarkers**: Fundamental frequency ($F0$), local jitter (frequency stability), local shimmer (amplitude stability), Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), Formants ($F1$-$F3$), RMS energy, MFCCs ($1$-$13$), Zero-Crossing Rate, and Chroma features ($1$-$12$). This yields a 48-dimensional clinical feature vector.
+- **Clinical Acoustic Biomarkers**: Fundamental frequency ($F0$), local jitter (frequency stability), local shimmer (amplitude stability), Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), Formants ($F1$-$F3$), RMS energy, MFCCs ($1$-$13$), Zero-Crossing Rate, and Chroma features ($1$-$12$). This yields a 22-dimensional clinical + nonlinear feature vector, further optimized to **10 selected features** using L1 regularization.
 - **Deep Speech Representations**: A 768-dimensional contextual embedding extracted from the mean-pooled last hidden state of a pretrained **WavLM Base** model (`microsoft/wavlm-base`) used exclusively for visual clustering layout.
 
 ### Classification & Explainability
-- **Clinical Feature Classification**: The 48 clinical features are scaled and fed into an optimized Random Forest classifier to predict Parkinson's risk probability and status. Decoupling the neural WavLM embeddings from the classification model ensures high generalization to real-world voice inputs.
+- **Clinical Feature Classification**: The 10 selected clinical features are scaled and fed into an optimized Calibrated SVM classifier to predict Parkinson's risk probability and status. Decoupling the neural WavLM embeddings from the classification model ensures high generalization to real-world voice inputs.
 - **2D Embedding Visualization**: The WavLM Base neural embedding is projected to 2D coordinates using a pretrained PCA component for UI cluster mapping.
-- **Explainable AI (SHAP)**: Computes Kernel SHAP values using the scaled 48-dimensional clinical feature space, mapping feature attributions of the top 5 biomarkers to the frontend dashboard.
+- **Explainable AI (SHAP)**: Computes Kernel SHAP/TreeSHAP values using the scaled 10-dimensional selected clinical feature space, mapping feature attributions of the top 5 biomarkers to the frontend dashboard.
 
 ---
 

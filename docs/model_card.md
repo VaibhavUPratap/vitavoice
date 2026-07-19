@@ -6,9 +6,9 @@ This model card details the model architecture, training configuration, performa
 
 ## Model Details
 
-- **Model Name**: VitaVoice-RandomForest-v2
+- **Model Name**: VitaVoice-CalibratedSVM-v3
 - **Model Type**: Decoupled Clinical Acoustic Classifier (with WavLM Base Neural 2D Visualizer Mapping)
-- **Primary Algorithm**: Random Forest Classifier
+- **Primary Algorithm**: Calibrated Support Vector Machine (RBF Kernel)
 - **Pretrained Neural Encoder**: `microsoft/wavlm-base` (Mean-pooled hidden state embeddings, 768-dimensions; used exclusively for 2D visual cohort cluster plotting)
 - **Checkpoints Directory**: `ml/checkpoints/`
 - **Release Date**: July 2026
@@ -35,22 +35,22 @@ This model card details the model architecture, training configuration, performa
 ## Features & Preprocessing
 
 The model decouples the classification feature space from the visualization embedding space:
-1. **48 Clinical Acoustic Classification Features**: Average, minimum, and maximum pitch ($F0$), local jitter, jitter RAP, jitter PPQ, jitter DDP, absolute jitter, local shimmer, shimmer dB, shimmer APQ3, shimmer APQ5, shimmer APQ11, shimmer DDA, Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), RMS energy, Formants ($F1$-$F3$), spectral centroid, spectral bandwidth, zero-crossing rate, 13 MFCCs, and 12 Chroma pitch features.
+1. **10 Selected Clinical Acoustic Classification Features**: Optimized using L1-regularized Logistic Regression to eliminate collinear redundancy (features include Fhi, Jitter(%), APQ, HNR, RPDE, DFA, spread1, spread2, D2, and PPE).
 2. **WavLM Base Neural Coordinates (Visualization Only)**: A 768-dimensional WavLM Base vector compressed to 2 coordinates via PCA for visual cohort mapping on the UI.
 
 ---
 
 ## Performance Metrics
 
-Evaluation using 5-Fold Stratified Cross-Validation:
+Evaluation using strict 5-Fold Stratified GroupKFold Cross-Validation (patient-level splits to prevent leakage):
 
 | Metric | Score |
 | :--- | :--- |
-| **Accuracy** | 86.15% |
-| **Precision** | 87.34% |
-| **Sensitivity (Recall)** | 95.98% |
-| **F1 Score** | 91.33% |
-| **AUC-ROC** | 88.22% |
+| **Accuracy** | 77.93% |
+| **Precision** | 90.89% |
+| **Sensitivity (Recall)** | 79.57% |
+| **F1 Score** | 82.99% |
+| **AUC-ROC** | 86.14% |
 
 ---
 

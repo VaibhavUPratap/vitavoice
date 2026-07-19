@@ -17,8 +17,9 @@ from sklearn.base import clone
 
 # Classifiers
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.feature_selection import SelectFromModel
 
 # Local dataset loaders
 from ml.data.oxford_loader import OxfordDatasetLoader
@@ -49,28 +50,28 @@ def _try_import_advanced():
     try:
         from xgboost import XGBClassifier
         libs['xgboost'] = XGBClassifier
-        print("  [✓] XGBoost available")
+        print("  [OK] XGBoost available")
     except ImportError:
-        print("  [!] XGBoost not installed — skipping (pip install xgboost)")
+        print("  [!] XGBoost not installed - skipping (pip install xgboost)")
 
     try:
         from lightgbm import LGBMClassifier
         libs['lightgbm'] = LGBMClassifier
-        print("  [✓] LightGBM available")
+        print("  [OK] LightGBM available")
     except ImportError:
-        print("  [!] LightGBM not installed — skipping (pip install lightgbm)")
+        print("  [!] LightGBM not installed - skipping (pip install lightgbm)")
 
     try:
         from imblearn.over_sampling import SMOTE
         libs['smote'] = SMOTE
-        print("  [✓] imbalanced-learn / SMOTE available")
+        print("  [OK] imbalanced-learn / SMOTE available")
     except ImportError:
-        print("  [!] imbalanced-learn not installed — skipping SMOTE (pip install imbalanced-learn)")
+        print("  [!] imbalanced-learn not installed - skipping SMOTE (pip install imbalanced-learn)")
 
     try:
         from imblearn.ensemble import BalancedRandomForestClassifier
         libs['balanced_rf'] = BalancedRandomForestClassifier
-        print("  [✓] BalancedRandomForestClassifier available")
+        print("  [OK] BalancedRandomForestClassifier available")
     except ImportError:
         pass
 
@@ -87,7 +88,7 @@ def train_vita_voice(
     os.makedirs(checkpoints_dir, exist_ok=True)
 
     print("\n" + "="*70)
-    print("  VitaVoice ML Training Pipeline — Research-Upgraded Edition")
+    print("  VitaVoice ML Training Pipeline - Research-Upgraded Edition")
     print("="*70)
     print("\n[1/9] Checking advanced library availability...")
     libs = _try_import_advanced()
@@ -101,8 +102,8 @@ def train_vita_voice(
         data_path = os.path.join(root_dir, "parkinsons.data")
         wav_dir = os.path.join(root_dir, "synthesized_wavs")
         cache_path = os.path.join(root_dir, "oxford_cache.joblib")
-        if os.path.exists(cache_path):
-            os.remove(cache_path)
+        # if os.path.exists(cache_path):
+        #     os.remove(cache_path)
         print(f"Loading Oxford dataset (direct tabular mode) from {data_path}...")
         # direct_mode=True reads all 22 features including RPDE, DFA, PPE, etc.
         loader = OxfordDatasetLoader(
@@ -114,8 +115,8 @@ def train_vita_voice(
     elif dataset_type == "real":
         real_dir = os.path.join(root_dir, "real")
         cache_path = os.path.join(root_dir, "real_cache.joblib")
-        if os.path.exists(cache_path):
-            os.remove(cache_path)
+        # if os.path.exists(cache_path):
+        #     os.remove(cache_path)
         print(f"Loading real clinical voice recordings from {real_dir}...")
         loader = RealAudioDatasetLoader(root_dir=real_dir, cache_path=cache_path)
     else:
@@ -131,13 +132,9 @@ def train_vita_voice(
     X_w2v = X_dict['X_w2v']
     feature_names = X_dict['feature_names']
 
-    print(f"\n  Dataset shape    : {X_cli.shape[0]} samples × {X_cli.shape[1]} features")
+    print(f"\n  Dataset shape    : {X_cli.shape[0]} samples x {X_cli.shape[1]} features")
     print(f"  Class distribution: {int(np.sum(y_arr==1))} PD / {int(np.sum(y_arr==0))} Healthy")
     print(f"  Imbalance ratio  : {np.sum(y_arr==1)/np.sum(y_arr==0):.1f}:1")
-    print(f"  Feature list     : {feature_names}")
-
-    # Save feature names for inference
-    joblib.dump(feature_names, os.path.join(checkpoints_dir, "feature_names.joblib"))
 
     # ─────────────────────────────────────────────────────────────────────────
     # 2. PCA Visualization (always 2D, for cluster map only)
@@ -182,7 +179,6 @@ def train_vita_voice(
     print(f"  Feature matrix for classification: {X_fused.shape}")
 
     # Apply log1p to right-skewed perturbation features (jitter, shimmer, NHR)
-    # These features have extreme positive outliers in PD patients; log compresses them
     LOG_TRANSFORM_COLS = [
         'MDVP:Jitter(%)', 'MDVP:Jitter(Abs)', 'MDVP:RAP', 'MDVP:PPQ',
         'MDVP:Shimmer', 'MDVP:Shimmer(dB)', 'Shimmer:APQ3', 'Shimmer:APQ5',
@@ -197,22 +193,50 @@ def train_vita_voice(
     def apply_log_transforms(X, indices):
         X_out = X.copy().astype(np.float64)
         for idx in indices:
-            # log1p is safe for near-zero values; clip negatives to 0 first
             X_out[:, idx] = np.log1p(np.maximum(X_out[:, idx], 0))
         return X_out
 
     X_fused_log = apply_log_transforms(X_fused, log_transform_indices)
     print(f"  Log1p transforms applied to {len(log_transform_indices)} skewed features")
 
-    # Save transform config for inference
+    # Fit initial scaler on all features to run feature selection
+    y_arr_np = np.array(y_arr)
+    initial_scaler = StandardScaler()
+    X_scaled_initial = initial_scaler.fit_transform(X_fused_log)
+
+    # Perform L1 Logistic Regression feature selection to select top features
+    print("\n[5.5/9] Performing L1-regularized feature selection (collinearity reduction)...")
+    selector = SelectFromModel(
+        LogisticRegression(penalty='l1', solver='liblinear', C=0.8, class_weight='balanced', random_state=42),
+        max_features=12
+    )
+    selector.fit(X_scaled_initial, y_arr_np)
+    selected_indices = list(selector.get_support(indices=True))
+    selected_feature_names = [feature_names_list[i] for i in selected_indices]
+    print(f"  Selected {len(selected_feature_names)} features: {selected_feature_names}")
+    
+    # Save SELECTED feature names for inference
+    joblib.dump(selected_feature_names, os.path.join(checkpoints_dir, "feature_names.joblib"))
+
+    # Update transform indices matching the selected features
+    selected_log_transform_indices = []
+    for col in LOG_TRANSFORM_COLS:
+        if col in selected_feature_names:
+            selected_log_transform_indices.append(selected_feature_names.index(col))
+            
+    # Save transform config for inference (consistent with selected features)
     transform_config = {
-        'log_transform_indices': log_transform_indices,
+        'log_transform_indices': selected_log_transform_indices,
         'log_transform_cols': LOG_TRANSFORM_COLS
     }
     joblib.dump(transform_config, os.path.join(checkpoints_dir, "transform_config.joblib"))
 
+    # Filter features matrix to selected features
+    X_fused_selected = X_fused[:, selected_indices]
+    X_fused_log_selected = apply_log_transforms(X_fused_selected, selected_log_transform_indices)
+    
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_fused_log)
+    X_scaled = scaler.fit_transform(X_fused_log_selected)
     joblib.dump(scaler, os.path.join(checkpoints_dir, "scaler.joblib"))
     joblib.dump(X_scaled, os.path.join(checkpoints_dir, "background_data.joblib"))
 
@@ -221,7 +245,6 @@ def train_vita_voice(
     # ─────────────────────────────────────────────────────────────────────────
     print("\n[6/9] Building model benchmarking grid...")
     from sklearn.model_selection import RandomizedSearchCV
-    y_arr_np = np.array(y_arr)
 
     # Compute positive class weight for imbalanced datasets
     n_neg = np.sum(y_arr_np == 0)
@@ -231,7 +254,6 @@ def train_vita_voice(
 
     grids = {
         'svm': {
-            # Use CalibratedClassifierCV instead of SVC(probability=True) per sklearn 1.9+
             'estimator': CalibratedClassifierCV(
                 SVC(class_weight='balanced', random_state=42),
                 method='sigmoid',
@@ -293,9 +315,6 @@ def train_vita_voice(
             },
             'n_iter': 80
         }
-        # Clean up None key if XGBoost doesn't have use_label_encoder
-        if None in grids['xgboost']['estimator'].get_params():
-            pass
 
     # Add LightGBM if available
     if 'lightgbm' in libs:
@@ -337,26 +356,27 @@ def train_vita_voice(
     # ─────────────────────────────────────────────────────────────────────────
     # 6. Cross-Validation Strategy
     # ─────────────────────────────────────────────────────────────────────────
-    # Extract subject IDs for group-aware CV (prevents patient data leakage)
     subject_ids = _get_subject_ids(metadata)
     n_unique_subjects = len(np.unique(subject_ids))
     print(f"\n  Unique subjects for GroupKFold: {n_unique_subjects}")
 
-    # Choose CV strategy based on data
     if n_unique_subjects >= 10:
         print("  Using StratifiedGroupKFold (prevents patient-level data leakage)")
         cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
         cv_split_args = {'groups': subject_ids}
+        inner_cv = StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=42)
+        search_fit_args = {'groups': subject_ids}
     else:
         print("  Using StratifiedKFold (not enough unique subjects for GroupKFold)")
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         cv_split_args = {}
+        inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        search_fit_args = {}
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 7. Hyperparameter Optimization + Benchmarking
+    # 7. Hyperparameter Optimization
     # ─────────────────────────────────────────────────────────────────────────
-    print("\n[7/9] Hyperparameter optimization + benchmarking across all models...")
-    benchmarks = {}
+    print("\n[7/9] Hyperparameter optimization across base models...")
     best_tuned_models = {}
 
     # SMOTE setup
@@ -366,12 +386,7 @@ def train_vita_voice(
     for model_name, config in grids.items():
         print(f"\n  Optimizing: {model_name.upper()}")
         estimator = config['estimator']
-
-        # Clean up None keys in XGBoost params
         params = {k: v for k, v in config['params'].items() if k is not None}
-
-        # Use standard StratifiedKFold for RandomizedSearchCV inner loop
-        inner_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
         try:
             search = RandomizedSearchCV(
@@ -379,12 +394,12 @@ def train_vita_voice(
                 param_distributions=params,
                 n_iter=config['n_iter'],
                 cv=inner_cv,
-                scoring='roc_auc',   # ROC-AUC is more appropriate for imbalanced medical screening
+                scoring='roc_auc',
                 random_state=42,
-                n_jobs=1,            # Use 1 job to keep output visible; models themselves use n_jobs=-1
+                n_jobs=1,
                 error_score=0.0
             )
-            search.fit(X_scaled, y_arr_np)
+            search.fit(X_scaled, y_arr_np, **search_fit_args)
             best_model = search.best_estimator_
             best_tuned_models[model_name] = best_model
             print(f"  Best params: {search.best_params_}")
@@ -393,7 +408,39 @@ def train_vita_voice(
             print(f"  [ERROR] Skipping {model_name}: {e}")
             continue
 
-        # Outer loop CV evaluation
+    # ─────────────────────────────────────────────────────────────────────────
+    # 7.5. Build Stacking and Soft Voting Ensembles
+    # ─────────────────────────────────────────────────────────────────────────
+    print("\n[7.5/9] Building Stacking and Soft Voting Ensembles...")
+    base_ensemble_estimators = []
+    # Include all tuned classifiers that support predict_proba
+    for base_name in ['svm', 'random_forest', 'xgboost', 'lightgbm', 'balanced_rf']:
+        if base_name in best_tuned_models:
+            base_ensemble_estimators.append((base_name, best_tuned_models[base_name]))
+            
+    if len(base_ensemble_estimators) >= 2:
+        voting_clf = VotingClassifier(
+            estimators=base_ensemble_estimators,
+            voting='soft'
+        )
+        stacking_clf = StackingClassifier(
+            estimators=base_ensemble_estimators,
+            final_estimator=LogisticRegression(class_weight='balanced', random_state=42),
+            cv=3,
+            n_jobs=-1
+        )
+        best_tuned_models['voting'] = voting_clf
+        best_tuned_models['stacking'] = stacking_clf
+        print("  Voting and Stacking ensembles successfully added to evaluation list.")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 7.6. Outer CV Evaluation
+    # ─────────────────────────────────────────────────────────────────────────
+    print("\nEvaluating all models using outer 5-fold CV...")
+    benchmarks = {}
+
+    for model_name, best_model in best_tuned_models.items():
+        print(f"  Evaluating: {model_name.upper()}...")
         accs, precs, recs, f1s, aucs, pr_aucs = [], [], [], [], [], []
 
         split_fn = cv.split(X_scaled, y_arr_np, **cv_split_args)
@@ -402,7 +449,7 @@ def train_vita_voice(
             X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
             y_train, y_val = y_arr_np[train_idx], y_arr_np[val_idx]
 
-            # Apply SMOTE on training fold only (NEVER on validation)
+            # Apply SMOTE on training fold only
             if use_smote:
                 try:
                     sm = smote(random_state=42 + fold_idx, k_neighbors=min(5, np.sum(y_train==0) - 1))
@@ -413,8 +460,9 @@ def train_vita_voice(
             fold_model = clone(best_model)
             try:
                 fold_model.fit(X_train, y_train)
-            except TypeError:
-                # Some models (XGBoost older versions) have extra params — retry without eval_set
+            except Exception:
+                # Fallback for models that might fail clone/fit in edge cases
+                fold_model = best_model
                 fold_model.fit(X_train, y_train)
 
             y_pred = fold_model.predict(X_val)
@@ -462,7 +510,7 @@ def train_vita_voice(
 
     best_model_name = max(benchmarks, key=lambda k: benchmarks[k]['roc_auc'])
     best_metrics = benchmarks[best_model_name]
-    print(f"\n  ★ Selected Best Model: {best_model_name.upper()}")
+    print(f"\n  * Selected Best Model: {best_model_name.upper()}")
     print(f"    F1-Score: {best_metrics['f1']:.4f} | ROC-AUC: {best_metrics['roc_auc']:.4f}")
     print(f"    Recall:   {best_metrics['recall']:.4f} | Precision: {best_metrics['precision']:.4f}")
 
@@ -481,7 +529,6 @@ def train_vita_voice(
     best_model_raw.fit(X_final, y_final)
 
     # Calibrate probability outputs using Platt scaling (sigmoid)
-    # Calibration improves reliability of risk_score probabilities in medical contexts
     print("\n  Calibrating probability outputs (Platt scaling)...")
     inner_cv_cal = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
     best_model_calibrated = CalibratedClassifierCV(
@@ -493,7 +540,7 @@ def train_vita_voice(
 
     # Save calibrated model
     joblib.dump(best_model_calibrated, os.path.join(checkpoints_dir, "classifier_model.joblib"))
-    # Save uncalibrated for TreeSHAP (SHAP works on base estimator)
+    # Save uncalibrated for TreeSHAP
     joblib.dump(best_model_raw, os.path.join(checkpoints_dir, "classifier_model_raw.joblib"))
     joblib.dump(best_model_name, os.path.join(checkpoints_dir, "model_type.joblib"))
 
