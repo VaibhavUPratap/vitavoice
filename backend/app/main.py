@@ -1,4 +1,14 @@
 import os
+import sys
+
+# Ensure backend and project root directories are in python path
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+root_dir = os.path.abspath(os.path.join(backend_dir, ".."))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 import shutil
 import threading
 import uuid
@@ -19,8 +29,6 @@ from app.config import settings
 from app.report_generator import generate_clinical_report
 from app.recording_quality import analyze_recording_quality
 from app.response_enrichment import enrich_response
-import sys
-sys.path.insert(0, '/Users/vaibhav/Documents/Projects/vitavoice')
 from ml.inference.predict import VitaVoicePredictor
 from ml.training.train import train_vita_voice
 

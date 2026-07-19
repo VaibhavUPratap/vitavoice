@@ -1,0 +1,4 @@
+[flake8]
+exclude = venv,frontend/node_modules,.git,__pycache__,docs,datasets,ml/checkpoints
+max-line-length = 127
+select = E9,F63,F7,F82,W,E,F

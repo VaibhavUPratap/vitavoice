@@ -117,8 +117,8 @@ The frontend dashboard will be available at [http://localhost:5173](http://local
 
 For detailed local setup, directories, architecture, and development guidelines, refer to the documents below:
 
-- **Local Installation & Setup**: [developer_guide.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/developer_guide.md)
-- **Architecture Details**: [architecture.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/architecture.md)
-- **Dataset Reference (Oxford Parkinson's)**: [dataset_info.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/dataset_info.md)
-- **Model Details**: [model_card.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/model_card.md)
-- **Responsible AI Framework**: [responsible_ai.md](file:///Users/vaibhav/Documents/Projects/vitavoice/docs/responsible_ai.md)
+- **Local Installation & Setup**: [developer_guide.md](docs/developer_guide.md)
+- **Architecture Details**: [architecture.md](docs/architecture.md)
+- **Dataset Reference (Oxford Parkinson's)**: [dataset_info.md](docs/dataset_info.md)
+- **Model Details**: [model_card.md](docs/model_card.md)
+- **Responsible AI Framework**: [responsible_ai.md](docs/responsible_ai.md)
