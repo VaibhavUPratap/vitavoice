@@ -67,6 +67,9 @@ def generate_pdf_report(
     wavlm_similarity=None,
     wavlm_ood=None,
     decision_engine=None,
+    wavlm_authenticity=None,
+    nearest_neighbors=None,
+    longitudinal_drift=None,
 ):
     """
     Generates a professional clinical screening PDF report.
@@ -100,6 +103,21 @@ def generate_pdf_report(
             "is_ood": False,
             "ood_score": 10.0,
             "message": "In-distribution"
+        }
+    if wavlm_authenticity is None:
+        wavlm_authenticity = {
+            "authenticity_score": 100.0,
+            "confidence": "High",
+            "warnings": [],
+            "is_authentic": True
+        }
+    if nearest_neighbors is None:
+        nearest_neighbors = []
+    if longitudinal_drift is None:
+        longitudinal_drift = {
+            "baseline_drift": 0.0,
+            "significant_shift_detected": False,
+            "drift_status": "Baseline comparison offline."
         }
 
     os.makedirs(output_dir, exist_ok=True)
@@ -509,6 +527,62 @@ def generate_pdf_report(
         
         story.append(Spacer(1, 10))
     
+    # ═══════════════════════════════════════════════════════════════════════
+    # 5.5. WavLM Audits: Authenticity + Cohort Neighbors + Voice Drift
+    # ═══════════════════════════════════════════════════════════════════════
+    if wavlm_authenticity or nearest_neighbors or longitudinal_drift:
+        story.append(Paragraph("WavLM Clinical Verification Audits", style_section_h))
+        
+        verify_rows = []
+        
+        # Row A: Authenticity
+        if wavlm_authenticity:
+            auth_score = wavlm_authenticity.get('authenticity_score', 100.0)
+            auth_lbl = "AUTHENTIC SPEECH" if auth_score >= 65.0 else "SUSPICIOUS SOURCE"
+            auth_color = '#059669' if auth_score >= 65.0 else '#e11d48'
+            warns = ", ".join(wavlm_authenticity.get('warnings', []))
+            warn_str = f" (Warnings: {warns})" if warns else ""
+            
+            verify_rows.append([
+                Paragraph("<b>Recording Authenticity:</b>", style_meta_label),
+                Paragraph(f'<font color="{auth_color}"><b>{auth_score:.1f}% ({auth_lbl})</b></font>{warn_str}', style_body)
+            ])
+            
+        # Row B: Nearest Reference Neighbors
+        if nearest_neighbors:
+            neighbors_p = []
+            for n in nearest_neighbors[:3]:
+                n_color = '#e11d48' if n['label'] == 1 else '#059669'
+                neighbors_p.append(f"Case #{n['reference_index']} ({n['cohort']} - {n['similarity']*100:.1f}% Match)")
+            
+            verify_rows.append([
+                Paragraph("<b>Nearest Cohort Matches:</b>", style_meta_label),
+                Paragraph("<br/>".join(neighbors_p), style_body)
+            ])
+            
+        # Row C: Longitudinal Drift
+        if longitudinal_drift:
+            drift_val = longitudinal_drift.get('baseline_drift', 0.0)
+            drift_status = longitudinal_drift.get('drift_status', 'No comparison baseline.')
+            drift_color = '#e11d48' if longitudinal_drift.get('significant_shift_detected', False) else '#0f172a'
+            
+            verify_rows.append([
+                Paragraph("<b>Longitudinal Baseline Drift:</b>", style_meta_label),
+                Paragraph(f'<font color="{drift_color}">Drift: {drift_val:.4f} -- {drift_status}</font>', style_body)
+            ])
+            
+        if verify_rows:
+            verify_table = Table(verify_rows, colWidths=[160, 372])
+            verify_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
+            ]))
+            story.append(verify_table)
+            story.append(Spacer(1, 10))
+            
     # ═══════════════════════════════════════════════════════════════════════
     # 6. SHAP Visual Chart (if created)
     # ═══════════════════════════════════════════════════════════════════════
