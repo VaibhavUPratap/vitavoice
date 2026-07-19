@@ -19,6 +19,7 @@ class VitaVoicePredictor:
         self.model_type = None
         self.background_data = None
         self.wavlm_intel = None
+        self.transform_config = None  # Log transform config saved during training
         self.loaded = False
         self.pipeline = AudioPreprocessingPipeline()
         
@@ -45,10 +46,17 @@ class VitaVoicePredictor:
             self.pca_vis = joblib.load(pca_vis_path)
             self.model = joblib.load(model_path)
             self.feature_names = joblib.load(feats_path)
-            
+
             # Load optional benchmarking configs
             self.model_type = joblib.load(type_path) if os.path.exists(type_path) else "svm"
             self.background_data = joblib.load(bg_path) if os.path.exists(bg_path) else None
+
+            # Load log transform config (saved during training for train/inference consistency)
+            transform_path = os.path.join(self.checkpoints_dir, "transform_config.joblib")
+            if os.path.exists(transform_path):
+                self.transform_config = joblib.load(transform_path)
+            else:
+                self.transform_config = None
             
             # Load WavLM references
             try:
@@ -92,8 +100,15 @@ class VitaVoicePredictor:
             w2v_reduced = w2v_emb
             
         # 5. Skip concatenation for classification (use robust clinical features only)
-        # 6. Standardize scale
-        features_scaled = self.scaler.transform(cli_vec.reshape(1, -1))
+        # 6. Apply log transforms (must match training pipeline)
+        cli_vec_transformed = cli_vec.copy().astype(np.float64)
+        if self.transform_config is not None:
+            for idx in self.transform_config.get('log_transform_indices', []):
+                if idx < len(cli_vec_transformed):
+                    cli_vec_transformed[idx] = np.log1p(max(cli_vec_transformed[idx], 0))
+
+        # 7. Standardize scale
+        features_scaled = self.scaler.transform(cli_vec_transformed.reshape(1, -1))
         
         # 7. Predict risk score
         probabilities = self.model.predict_proba(features_scaled)[0]
@@ -190,29 +205,58 @@ class VitaVoicePredictor:
         
     def compute_shap_explanations(self, features_scaled):
         """
-        Runs SHAP on the scaled fused features and maps it back to clinical biomarkers.
+        Computes SHAP values using TreeExplainer (exact, fast) for tree-based models,
+        falling back to KernelExplainer for non-tree models.
         """
-        if self.background_data is None:
-            return []
-            
         try:
-            # We wrap the predict_proba function to return only the probability of Parkinson's
-            def predict_probability_parkinsons(x):
-                return self.model.predict_proba(x)[:, 1]
-                
-            # Perform Kernel SHAP using a kmeans summary of 10 points for speed
-            bg_summary = shap.kmeans(self.background_data, 10)
-            explainer = shap.KernelExplainer(predict_probability_parkinsons, bg_summary)
-            
-            # Compute SHAP values for the current input, shape [1, 49]
-            shap_vals = explainer.shap_values(features_scaled, silent=True)[0]
-            
-            # Map the first len(feature_names) SHAP values to the clinical feature keys
-            # The remaining elements correspond to the reduced neural components
-            num_cli = len(self.feature_names)
-            cli_shap_values = shap_vals[:num_cli]
-            
-            # Human-readable labels mapping
+            # Resolve to base estimator for TreeSHAP
+            # CalibratedClassifierCV wraps the raw model — unwrap it
+            base_model = self.model
+            if hasattr(base_model, 'calibrated_classifiers_'):
+                # Use the first calibrator's base estimator for TreeSHAP
+                base_model = base_model.calibrated_classifiers_[0].estimator
+            elif hasattr(base_model, 'estimator'):
+                base_model = base_model.estimator
+
+            # Also try loading the raw (uncalibrated) model saved alongside the calibrated one
+            raw_model_path = os.path.join(self.checkpoints_dir, "classifier_model_raw.joblib")
+            if os.path.exists(raw_model_path):
+                base_model = joblib.load(raw_model_path)
+
+            model_type = self.model_type or ''
+            is_tree_model = any(t in model_type.lower() for t in [
+                'random_forest', 'gradient_boosting', 'xgboost', 'lightgbm', 'balanced_rf'
+            ])
+
+            if is_tree_model:
+                # TreeSHAP — exact, millisecond-speed for tree models
+                explainer = shap.TreeExplainer(base_model)
+                raw_shap = explainer.shap_values(features_scaled, check_additivity=False)
+
+                # For multi-output (RF returns list of [class0_shap, class1_shap])
+                if isinstance(raw_shap, list) and len(raw_shap) >= 2:
+                    shap_vals = raw_shap[1][0]  # class=1 (PD), first sample
+                elif isinstance(raw_shap, np.ndarray) and raw_shap.ndim == 3:
+                    shap_vals = raw_shap[0, :, 1]  # first sample, PD class
+                elif isinstance(raw_shap, np.ndarray) and raw_shap.ndim == 2:
+                    shap_vals = raw_shap[0]  # first sample
+                else:
+                    shap_vals = raw_shap[0] if hasattr(raw_shap, '__len__') else raw_shap
+
+            else:
+                # Fallback KernelExplainer for non-tree models (e.g. calibrated SVM)
+                if self.background_data is None:
+                    return []
+                def predict_proba_pd(x):
+                    try:
+                        return self.model.predict_proba(x)[:, 1]
+                    except Exception:
+                        return np.zeros(len(x))
+                bg_summary = shap.kmeans(self.background_data, 10)
+                explainer = shap.KernelExplainer(predict_proba_pd, bg_summary)
+                shap_vals = explainer.shap_values(features_scaled, silent=True)[0]
+
+            # Human-readable labels (updated to include nonlinear Oxford features)
             readable_labels = {
                 'MDVP:Fo(Hz)': 'Average Pitch (F0)',
                 'MDVP:Fhi(Hz)': 'Maximum Pitch (Fhi)',
@@ -236,17 +280,24 @@ class VitaVoicePredictor:
                 'F3': 'Formant F3 Frequency',
                 'Spectral_Centroid': 'Spectral Centroid',
                 'Spectral_Bandwidth': 'Spectral Bandwidth',
-                'Zero_Crossing_Rate': 'Zero-Crossing Rate'
+                'Zero_Crossing_Rate': 'Zero-Crossing Rate',
+                # Nonlinear dynamical complexity features (highest PD discriminators)
+                'RPDE': 'Recurrence Period Density Entropy',
+                'DFA': 'Detrended Fluctuation Analysis (DFA)',
+                'spread1': 'Nonlinear Pitch Variation (spread1)',
+                'spread2': 'Nonlinear Pitch Variation (spread2)',
+                'D2': 'Correlation Dimension (D2)',
+                'PPE': 'Pitch Period Entropy (PPE)',
             }
-            
+
             shap_results = []
+            shap_arr = np.array(shap_vals).flatten()
             for i, feat_name in enumerate(self.feature_names):
-                shap_val = float(cli_shap_values[i])
+                if i >= len(shap_arr):
+                    break
+                shap_val = float(shap_arr[i])
                 label = readable_labels.get(feat_name, feat_name)
-                
-                # Check contribution direction
                 impact = "increase" if shap_val > 0 else "decrease"
-                
                 shap_results.append({
                     'feature_name': feat_name,
                     'label': label,
@@ -254,12 +305,10 @@ class VitaVoicePredictor:
                     'impact': impact,
                     'abs_value': abs(shap_val)
                 })
-                
-            # Sort by absolute contribution and return top 5
+
             shap_results = sorted(shap_results, key=lambda x: x['abs_value'], reverse=True)
             return shap_results[:5]
-            
+
         except Exception as e:
             print(f"Error computing SHAP values: {e}")
-            # Safe fallback: return empty list
             return []

@@ -1,6 +1,7 @@
 import numpy as np
 import librosa
 from scipy.signal import find_peaks, lfilter
+from scipy.stats import entropy as scipy_entropy
 
 def estimate_f0(y, sr, fmin=75, fmax=500):
     """
@@ -213,6 +214,204 @@ def estimate_formants(y, sr):
     
     return f1, f2, f3
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Nonlinear Dynamical Complexity Features
+# These mirror the proven highest-discriminating features in Little et al. 2008
+# ─────────────────────────────────────────────────────────────────────────────
+
+def estimate_ppe(f0_contour, sr):
+    """
+    Pitch Period Entropy (PPE) — uncertainty/disorder in the pitch period sequence.
+    One of the top discriminators for Parkinson's voice per Little et al. 2008.
+    High PPE = irregular pitch periods = characteristic of PD dysphonia.
+    """
+    voiced_f0 = f0_contour[f0_contour > 0]
+    if len(voiced_f0) < 10:
+        return 0.0
+
+    # Convert F0 to pitch periods (in seconds) and compute period-to-period entropy
+    periods = 1.0 / voiced_f0
+
+    # Normalize to semitone scale (log base-2 of ratio to mean period)
+    mean_period = np.mean(periods)
+    if mean_period <= 0:
+        return 0.0
+    log_periods = np.log2(periods / mean_period)
+
+    # Discretize into 100 bins and compute entropy
+    hist, _ = np.histogram(log_periods, bins=100, density=True)
+    hist = hist + 1e-10  # avoid log(0)
+    ppe = float(scipy_entropy(hist, base=2))
+
+    # Normalize to [0, 1] range (log2(100) is max entropy)
+    ppe_normalized = ppe / np.log2(100)
+    return float(np.clip(ppe_normalized, 0.0, 1.0))
+
+
+def estimate_rpde(f0_contour):
+    """
+    Recurrence Period Density Entropy (RPDE) — complexity measure of the F0 contour.
+    Captures the recurrence structure of voiced segments in a scalar entropy value.
+    Parkinson's voices show significantly higher RPDE than healthy voices.
+    """
+    voiced_f0 = f0_contour[f0_contour > 0]
+    if len(voiced_f0) < 20:
+        return 0.5  # default mid-range
+
+    # Normalized F0 sequence
+    mu = np.mean(voiced_f0)
+    sigma = np.std(voiced_f0) + 1e-8
+    x = (voiced_f0 - mu) / sigma
+
+    # Build recurrence matrix with embedding dimension=2, tau=1
+    # Count recurrence periods (how long before trajectory returns to neighbourhood)
+    eps = 0.5  # recurrence threshold
+    n = len(x)
+    rp_lengths = []
+    i = 0
+    while i < n - 1:
+        for j in range(i + 1, n):
+            if abs(x[j] - x[i]) < eps:
+                rp_lengths.append(j - i)
+                break
+        i += 1
+
+    if len(rp_lengths) < 5:
+        return 0.5
+
+    # Compute entropy of recurrence period distribution
+    hist, _ = np.histogram(rp_lengths, bins=min(30, len(rp_lengths) // 2 + 1), density=True)
+    hist = hist + 1e-10
+    rpde = float(scipy_entropy(hist, base=2))
+    # Normalize to approx [0, 1]
+    rpde_normalized = rpde / np.log2(30)
+    return float(np.clip(rpde_normalized, 0.0, 1.0))
+
+
+def estimate_dfa(f0_contour):
+    """
+    Detrended Fluctuation Analysis (DFA) — measures long-range self-similarity
+    (Hurst exponent-like) of the F0 time series. PD voice shows altered scaling
+    behaviour due to motor control degradation.
+    Alpha ~0.5 = uncorrelated (noise), ~1.0 = 1/f (healthy voice), >1 = strong LRC.
+    """
+    voiced_f0 = f0_contour[f0_contour > 0]
+    if len(voiced_f0) < 30:
+        return 0.7  # fallback near healthy average
+
+    # Integrate the signal (cumulative sum of mean-centered series)
+    y = np.cumsum(voiced_f0 - np.mean(voiced_f0))
+    n_total = len(y)
+
+    # Window sizes on a log scale
+    min_box = 4
+    max_box = n_total // 4
+    if max_box < min_box:
+        return 0.7
+
+    box_sizes = np.unique(np.round(
+        np.logspace(np.log10(min_box), np.log10(max_box), 12)
+    ).astype(int))
+
+    flucts = []
+    valid_sizes = []
+    for box in box_sizes:
+        if box < 2 or box > n_total:
+            continue
+        n_boxes = n_total // box
+        if n_boxes < 2:
+            continue
+        rms_list = []
+        for k in range(n_boxes):
+            seg = y[k * box: (k + 1) * box]
+            t = np.arange(len(seg))
+            # Detrend by linear least-squares fit
+            coeffs = np.polyfit(t, seg, 1)
+            trend = np.polyval(coeffs, t)
+            rms_list.append(np.sqrt(np.mean((seg - trend) ** 2)))
+        flucts.append(np.mean(rms_list))
+        valid_sizes.append(box)
+
+    if len(valid_sizes) < 4:
+        return 0.7
+
+    # DFA alpha = slope of log-log regression of fluctuation vs window size
+    log_n = np.log(valid_sizes)
+    log_f = np.log(np.array(flucts) + 1e-10)
+    alpha = float(np.polyfit(log_n, log_f, 1)[0])
+    return float(np.clip(alpha, 0.1, 2.0))
+
+
+def estimate_spread(f0_contour):
+    """
+    Nonlinear fundamental frequency variation measures (spread1, spread2).
+    In the Oxford dataset these correspond to:
+    - spread1: amplitude-modulation of the pitch on a log-power scale
+    - spread2: quadratic variation of pitch on fundamental domain
+    We approximate these from the F0 contour using the same computational intent.
+    """
+    voiced_f0 = f0_contour[f0_contour > 0]
+    if len(voiced_f0) < 10:
+        return -5.0, 0.2
+
+    # spread1 is typically negative (Oxford values range approx -7.96 to -2.43)
+    # It captures asymmetry in the log-pitch distribution
+    log_f0 = np.log(voiced_f0 + 1e-8)
+    spread1 = float(np.percentile(log_f0, 25) - np.mean(log_f0))
+    # Scale to match Oxford range (typically -8 to -2)
+    spread1 = float(np.clip(spread1 * 3.0, -8.0, -2.0))
+
+    # spread2 is positive (Oxford values range approx 0.006 to 0.451)
+    spread2 = float(np.std(voiced_f0 / (np.mean(voiced_f0) + 1e-8)))
+    spread2 = float(np.clip(spread2, 0.001, 0.5))
+
+    return spread1, spread2
+
+
+def estimate_d2(f0_contour):
+    """
+    Correlation Dimension (D2) — attractor complexity of the vocal fold dynamics.
+    Higher D2 = more complex/chaotic vocal signal, typical of PD.
+    Oxford dataset range: approximately 1.42 to 3.67.
+    """
+    voiced_f0 = f0_contour[f0_contour > 0]
+    if len(voiced_f0) < 30:
+        return 2.3  # population mean fallback
+
+    # Grassberger-Procaccia algorithm approximation with small embedding
+    # Embed in 3D with lag tau=1
+    n = len(voiced_f0)
+    tau = 1
+    m = 3
+    n_emb = n - (m - 1) * tau
+    if n_emb < 10:
+        return 2.3
+
+    # Build embedded vectors
+    X = np.array([voiced_f0[i:i + m * tau:tau] for i in range(n_emb)])
+
+    # Sample random pairs to estimate correlation integral
+    rng = np.random.default_rng(42)
+    n_pairs = min(500, n_emb * (n_emb - 1) // 2)
+    idx1 = rng.integers(0, n_emb, n_pairs)
+    idx2 = rng.integers(0, n_emb, n_pairs)
+    mask = idx1 != idx2
+    dists = np.linalg.norm(X[idx1[mask]] - X[idx2[mask]], axis=1)
+
+    if len(dists) < 20:
+        return 2.3
+
+    # Compute D2 from slope of log(C(r)) vs log(r) at intermediate scales
+    r_vals = np.percentile(dists, [10, 20, 30, 40, 50])
+    c_vals = [np.mean(dists < r) + 1e-10 for r in r_vals]
+    if r_vals[0] <= 0 or c_vals[0] <= 0:
+        return 2.3
+    log_r = np.log(r_vals + 1e-10)
+    log_c = np.log(c_vals)
+    d2 = float(np.polyfit(log_r, log_c, 1)[0])
+    return float(np.clip(d2, 1.0, 4.0))
+
+
 def extract_all_acoustic_features(y, sr):
     """
     Runs the complete acoustic biomarker extraction pipeline.
@@ -255,8 +454,18 @@ def extract_all_acoustic_features(y, sr):
     chroma = librosa.feature.chroma_stft(y=y, sr=sr, n_chroma=12)
     chroma_means = np.mean(chroma, axis=1)
     
+    # 9. Nonlinear Dynamic Complexity Features (from F0 contour)
+    ppe_val = estimate_ppe(f0_contour, sr)
+    rpde_val = estimate_rpde(f0_contour)
+    dfa_val = estimate_dfa(f0_contour)
+    spread1_val, spread2_val = estimate_spread(f0_contour)
+    d2_val = estimate_d2(f0_contour)
+
     # Compile Oxford format dictionary matching parkinsons.data columns
+    # NOTE: When trained on Oxford tabular data (direct_mode), these keys
+    # must match exactly: MDVP:Fo(Hz), ..., RPDE, DFA, spread1, spread2, D2, PPE
     features = {
+        # Classical acoustic perturbation features
         'MDVP:Fo(Hz)': fo_mean,
         'MDVP:Fhi(Hz)': fhi,
         'MDVP:Flo(Hz)': flo,
@@ -273,6 +482,14 @@ def extract_all_acoustic_features(y, sr):
         'Shimmer:DDA': dda,
         'NHR': nhr,
         'HNR': hnr,
+        # Nonlinear dynamical complexity features (high PD discriminative power)
+        'RPDE': rpde_val,
+        'DFA': dfa_val,
+        'spread1': spread1_val,
+        'spread2': spread2_val,
+        'D2': d2_val,
+        'PPE': ppe_val,
+        # Additional spectral features for real-audio inference
         'Energy': energy_mean,
         'F1': f1,
         'F2': f2,
@@ -281,13 +498,13 @@ def extract_all_acoustic_features(y, sr):
         'Spectral_Bandwidth': bandwidth_mean,
         'Zero_Crossing_Rate': zcr_mean,
     }
-    
+
     # Add MFCCs explicitly
     for i, m_val in enumerate(mfcc_means):
         features[f'MFCC_{i+1}'] = m_val
-        
+
     # Add Chroma features explicitly
     for i, c_val in enumerate(chroma_means):
         features[f'Chroma_{i+1}'] = c_val
-        
+
     return features
