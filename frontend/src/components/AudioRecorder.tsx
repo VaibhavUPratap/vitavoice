@@ -28,6 +28,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [patientId, setPatientId] = useState('');
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -242,6 +243,9 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     onAnalysisStart(); setUploadProgress(true); setErrorMsg(null);
     const formData = new FormData();
     formData.append('file', blobToUpload, 'voice_sample.wav');
+    if (patientId.trim()) {
+      formData.append('patient_id', patientId.trim());
+    }
     try {
       const response = await fetch(`${backendUrl}/api/v1/screen`, { method: 'POST', body: formData });
       const data = await response.json();
@@ -355,6 +359,32 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
               <strong>10–15 seconds</strong>. Hold the microphone about 6 inches from your mouth and maintain a steady pitch and volume.
             </p>
           </section>
+
+          {!uploadProgress && (
+            <section className="step-section animate-fade-in">
+              <h3 className="step-section__title">Patient ID (Longitudinal Tracking)</h3>
+              <p className="step-section__body" style={{ marginBottom: '8px' }}>
+                Optional: Enter a Patient ID to trace historical screening trajectories and baseline drift over time.
+              </p>
+              <input
+                id="patient-id-input"
+                type="text"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                placeholder="e.g. pat_john_doe"
+                style={{
+                  width: '100%',
+                  background: 'var(--color-paper-2)',
+                  color: 'var(--color-ink)',
+                  border: '1px solid var(--color-ink-3)',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  fontFamily: 'inherit',
+                  fontSize: 'var(--text-sm)'
+                }}
+              />
+            </section>
+          )}
 
           {!uploadProgress && (
             <section className="step-section">

@@ -7,10 +7,17 @@ interface ClusterPoint {
   status: number;
 }
 
+interface TrajectoryPoint {
+  x: number;
+  y: number;
+  timestamp: string;
+}
+
 interface EmbeddingCanvasProps {
   embeddingCoords: [number, number];
   clusterPoints: ClusterPoint[];
   clustersLoaded: boolean;
+  patientTrajectory?: TrajectoryPoint[];
 }
 
 type HoverInfo = {
@@ -38,7 +45,7 @@ function generateFallbackClusters(): ClusterPoint[] {
   return points;
 }
 
-export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded }: EmbeddingCanvasProps) {
+export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded, patientTrajectory }: EmbeddingCanvasProps) {
   const [zoomed, setZoomed] = useState(false);
   const [hovered, setHovered] = useState<HoverInfo | null>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 620, h: 240 });
@@ -54,8 +61,10 @@ export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded
   const points = clustersLoaded && clusterPoints.length > 0 ? clusterPoints : fallbackRef.current;
 
   const getBounds = useCallback(() => {
-    const allX = [...points.map((p) => p.x), coordsValid ? userX : 0];
-    const allY = [...points.map((p) => p.y), coordsValid ? userY : 0];
+    const trajectoryX = patientTrajectory ? patientTrajectory.map(pt => pt.x) : [];
+    const trajectoryY = patientTrajectory ? patientTrajectory.map(pt => pt.y) : [];
+    const allX = [...points.map((p) => p.x), coordsValid ? userX : 0, ...trajectoryX];
+    const allY = [...points.map((p) => p.y), coordsValid ? userY : 0, ...trajectoryY];
     if (zoomed && coordsValid) {
       return { minX: userX - 1.2, maxX: userX + 1.2, minY: userY - 0.8, maxY: userY + 0.8 };
     }
@@ -135,6 +144,35 @@ export function EmbeddingCanvas({ embeddingCoords, clusterPoints, clustersLoaded
           ? 'oklch(52% 0.14 155 / 0.55)'
           : 'oklch(52% 0.18 25 / 0.55)';
         ctx.fill();
+      }
+
+      // Draw chronological trajectory line
+      if (patientTrajectory && patientTrajectory.length > 1) {
+        ctx.strokeStyle = 'oklch(58% 0.20 256 / 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i = 0; i < patientTrajectory.length; i++) {
+          const pt = patientTrajectory[i];
+          const tx = mapX(pt.x, width);
+          const ty = mapY(pt.y, height);
+          if (i === 0) ctx.moveTo(tx, ty);
+          else ctx.lineTo(tx, ty);
+        }
+        ctx.stroke();
+        
+        // Draw directional markers for trajectory points
+        for (let i = 0; i < patientTrajectory.length; i++) {
+          const pt = patientTrajectory[i];
+          const tx = mapX(pt.x, width);
+          const ty = mapY(pt.y, height);
+          ctx.beginPath();
+          ctx.arc(tx, ty, 3, 0, Math.PI * 2);
+          ctx.fillStyle = i === patientTrajectory.length - 1 ? 'oklch(58% 0.20 256)' : 'oklch(96% 0.005 250 / 0.7)';
+          ctx.fill();
+          ctx.strokeStyle = 'oklch(38% 0.012 260)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
       }
 
       if (coordsValid) {

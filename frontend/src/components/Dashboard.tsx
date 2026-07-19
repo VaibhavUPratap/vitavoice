@@ -33,8 +33,8 @@ function getRiskColors(score: number): RiskColors {
 export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHistoryRecord, backendUrl }) => {
   const riskScore = data.risk_score as number;
   const embeddingCoords = data.embedding_coords as [number, number];
-  const report = data.report as Record<string, unknown>;
-  const recommendations = report.recommendations as string[];
+  const report = (data.report as Record<string, unknown>) || {};
+  const recommendations = (report.recommendations as string[]) || [];
   const shapExplanation = report.shap_explanation as Array<Record<string, unknown>> | undefined;
   const reportUrl = data.report_url as string | undefined;
 
@@ -81,6 +81,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
   const [clusterPoints, setClusterPoints] = useState<Array<{ x: number; y: number; status: number }>>([]);
   const [clustersLoaded, setClustersLoaded] = useState(false);
   const [historyList, setHistoryList] = useState<Array<Record<string, unknown>>>([]);
+  const patientId = data.patient_id as string | undefined;
+  const [patientTrajectory, setPatientTrajectory] = useState<Array<{ x: number; y: number; timestamp: string }>>([]);
+
+  useEffect(() => {
+    if (!patientId || !backendUrl) return;
+    const fetchTrajectory = async () => {
+      try {
+        const res = await fetch(`${backendUrl}/api/v1/patients/${patientId}/digital-twin`);
+        if (res.ok) {
+          const result = await res.json();
+          if (result.trajectory) {
+            setPatientTrajectory(result.trajectory);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load patient digital twin trajectory:', err);
+      }
+    };
+    fetchTrajectory();
+  }, [patientId, backendUrl]);
 
   const colors = getRiskColors(riskScore);
 
@@ -367,7 +387,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
                       {Math.round(riskScore * 100)}%
                     </span>
                     <span className={`clinical-summary__risk-cat ${colors.badgeClass}`}>
-                      {(report.risk_category as string).toLowerCase()}
+                      {(report.risk_category as string || 'n/a').toLowerCase()}
                     </span>
                   </div>
 
@@ -582,6 +602,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onReset, onLoadHisto
                   embeddingCoords={embeddingCoords}
                   clusterPoints={clusterPoints}
                   clustersLoaded={clustersLoaded}
+                  patientTrajectory={patientTrajectory}
                 />
 
                 <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
