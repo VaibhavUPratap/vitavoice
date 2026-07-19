@@ -62,3 +62,7 @@ backend/uploads/*
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Patient database
+datasets/patients/patients.db
+

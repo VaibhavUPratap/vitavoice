@@ -76,28 +76,31 @@ vitavoice/
 
 ## 3. Code Verification & Quality Standards
 
-To maintain clinical research standards, all code must pass linters, type checks, and pytest suites.
+To maintain clinical standards, all code must pass linters, type checks, backend unit tests, and end-to-end browser automation suites.
 
-### Running Pytest
-Run the test suite with coverage tracking:
+### 3.1 Running Backend Pytests
+Run the unit test suite (ignoring browser/direct-upload tests to avoid local rate-limiting or uvicorn requirements):
 ```bash
-.\venv\Scripts\python.exe -m pytest --cov=ml --cov=backend tests/
+.\venv\Scripts\python.exe -m pytest --ignore=tests/test_frontend.py --ignore=tests/test_results_page.py --ignore=tests/test_direct_upload.py
 ```
 
-### Static Type Checking (Mypy)
+### 3.2 Running Playwright Integration Tests
+To verify the end-to-end visual integration between the FastAPI backend and React frontend (including file uploads and latent cluster visualizer rendering), use the automated server test wrapper:
+```bash
+.\venv\Scripts\python.exe .agents\skills\webapp-testing\scripts\with_server.py --server ".\venv\Scripts\python.exe -m uvicorn backend.app.main:app --port 8000" --port 8000 -- .\venv\Scripts\python.exe -m pytest tests/test_results_page.py -s
+```
+*Note: This script launches uvicorn on port 8000, wait-checks for readiness, executes the Playwright chrome tests, captures browser console outputs, and saves page screenshots to `tests/screenshots/results_page.png` before terminating the server process.*
+
+### 3.3 Static Type Checking & Linters
 Verify static types for Python modules:
 ```bash
 mypy --ignore-missing-imports backend/ ml/
 ```
-
-### Code Style Checking (Flake8)
-Verify PEP8 coding standards:
+Verify PEP8 style guidelines:
 ```bash
 flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 ```
-
-### TypeScript Validation
-Verify types on the frontend:
+Verify TypeScript files on the frontend:
 ```bash
 cd frontend
 npx tsc --noEmit
@@ -105,12 +108,17 @@ npx tsc --noEmit
 
 ---
 
-## 4. Extending the Machine Learning Pipeline
+## 4. Extending the SQLite Database & CDE Rules
 
-If you wish to add new features (e.g., spectral flatness or new speech foundation embeddings):
-1. **Acoustic Extraction**: Update `extract_all_acoustic_features` in `ml/feature_extraction/acoustic.py`.
-2. **Model Training**: Add the feature name to the lists in `ml/training/train.py` and run a model retraining.
-3. **Training Models**: Model retraining can be triggered directly on the UI via the "Train AI Models Now" warning banner, or by sending a POST request to `/api/v1/train`.
+### 4.1 Modifying Database Schema
+The patient timeline schema is managed in [patient_db.py](file:///d:/Projects/vitavoice/backend/app/services/patient_db.py). The DB utilizes an automated sqlite dynamic migration scheme:
+- If you need to track new diagnostic parameters (e.g. spoofy probability, raw audio paths), add columns to the `CREATE TABLE` script inside `PatientDBService._init_db()`.
+- Baseline voice drift calculations are processed in `PatientDBService.save_screening` and query historical coordinates to map drift magnitude vectors.
+
+### 4.2 Expanding Clinical Decision Engine (CDE) Logic
+The logic gates reside in [decision_engine.py](file:///d:/Projects/vitavoice/backend/app/services/decision_engine.py):
+- Override rules evaluate classifier probability margins, OOD bounds, spoof checks, and historical tracking drift.
+- If you add a new diagnostic check, register the condition in `ClinicalDecisionEngine.run_rules` and ensure it returns appropriate override status keys.
 
 ---
 

@@ -14,63 +14,74 @@ By combining **clinical acoustic digital signal processing** with **modern trans
 ## ✨ Key Features
 
 - **Interactive Vocal Signal & Feature Analyzer**: Live canvas-less SVG spectrogram visualizer on the home page responding directly to mouse gestures with real-time frequency/amplitude tooltips.
-- **Pre-Inference Quality Guardrails**: Standardizes audio inputs by analyzing background noise, Signal-to-Noise Ratio (SNR), and clipping prior to model prediction to flag low-quality recordings.
-- **Decoupled Acoustic & Neural Pipeline**: Extracts clinical acoustic biomarkers (optimized to **10 selected features** using L1 regularization to reduce collinearity) for highly generalizable **Calibrated SVM** classification, and leverages 768-dimensional WavLM Base embeddings for 2D visual cluster maps.
+- **WavLM AI Intelligence Layer**: Bypasses simplistic concatenation by treating WavLM Base embeddings as an independent, multi-modal validation layer:
+  - **Voice Fingerprint Similarity**: Calculates cosine and Mahalanobis distances against target clinical cohorts to run $k$-nearest neighbors (KNN) cluster lookups.
+  - **Recording Authenticity & Spoof Auditor**: Analyzes spectral flatness anomalies and monotone pitch metrics to prevent robotic/synthetic speech injection and replay loops.
+  - **Out-of-Distribution (OOD) Detector**: Employs a calibrated One-Class SVM boundary to flag statistical voice anomalies.
+  - **Neural Quality Auditor**: Checks background noise, RMS limits, and speech coverage ratios against reference clusters.
+  - **Confidence & Trust Auditor**: Combines classifier decision margins, quality scores, spoof risk, and historical baseline variance to output an overall Trust Level (High, Medium, Low).
+- **Clinical Decision Engine (CDE)**: Integrates expert rules that prevent forced classifications by overriding risk categories with "Inconclusive" or suspending screening in case of failed quality/spoof metrics.
+- **SQLite Patient Timeline & Longitudinal Trajectory**: Tracks patient screenings over time. Computes baseline voice drift vectors and renders a visual chronological path connecting coordinate drift on the 2D cluster map.
 - **Explainable AI (SHAP)**: Provides a feature-by-feature SHAP importance analysis showing which vocal biomarkers contribute positively or negatively to the risk score.
-- **Interactive PCA Embedding Space**: Visualizes the patient's voice coordinate relative to reference healthy control and pathology cohorts on a 2D cluster map.
-- **Clinical Response Enrichment**: Translates raw machine learning scores into margin-based confidence levels, risk-stratified actionable plans/recommendations, and natural language explanations.
-- **PDF Report Generator**: Generates clean, clinical-grade PDF reports with patient summaries, recording quality stats, biomarker charts, and recommendation paths.
+- **PDF Report Generator**: Generates 3-page clinical-grade PDF reports containing patient timeline summaries, recording quality stats, cohort similarity scores, SHAP explanations, and responsible AI guardrails.
 
 ---
 
 ## ⚙️ High-Level Architecture
 
 ```text
-                          ┌──────────────────────────┐
-                          │   User Voice Recording   │
-                          └─────────────┬────────────┘
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │   Audio Preprocessing    │
-                          │(16kHz, Resampling, Noise)│
-                          └─────────────┬────────────┘
-                                        │
-                                        ▼
-                          ┌──────────────────────────┐
-                          │ Recording Quality Check  │
-                          │  (SNR, Noise, Clipping)  │
-                          └─────────────┬────────────┘
-                                        │
-                                        ▼
-                       ┌─────────────────┴─────────────────┐
-                       ▼                                   ▼
-         ┌───────────────────────────┐       ┌───────────────────────────┐
-         │  Clinical Perturbation    │       │    WavLM Base Embedding   │
-         │ (Jitter, Shimmer, HNR...) │       │  (microsoft/wavlm-base)   │
-         └─────────────┬─────────────┘       └─────────────┬─────────────┘
-                       │                                   │ (768-dim PCA)
-                       ▼                                   ▼
-         ┌───────────────────────────┐       ┌───────────────────────────┐
-         │   10 Selected Features    │       │   2D Cluster Coordinates  │
-         └─────────────┬─────────────┘       └─────────────┬─────────────┘
-                       │                                   │
-                       ▼                                   ▼
-         ┌───────────────────────────┐       ┌───────────────────────────┐
-         │ Calibrated SVM Classifier │       │   2D PCA Cluster Map      │
-         └─────────────┬─────────────┘       └───────────────────────────┘
-                       │
-                       ▼
-         ┌───────────────────────────┐
-         │   Response Enrichment     │
-         │ (Calibrated Explanations) │
-         └─────────────┬─────────────┘
-                       │
-                       ▼
-         ┌───────────────────────────┐
-         │   Clinical Report, SHAP   │
-         │     & Report PDF File     │
-         └───────────────────────────┘
+                           ┌──────────────────────────┐
+                           │   User Voice Recording   │
+                           └─────────────┬────────────┘
+                                         │
+                                         ▼
+                           ┌──────────────────────────┐
+                           │   Audio Preprocessing    │
+                           │(16kHz, Resampling, Noise)│
+                           └─────────────┬────────────┘
+                                         │
+                                         ▼
+                           ┌──────────────────────────┐
+                           │ Recording Quality Check  │
+                           │  (SNR, Noise, Clipping)  │
+                           └─────────────┬────────────┘
+                                         │
+                                         ▼
+                        ┌─────────────────┴─────────────────┐
+                        ▼                                   ▼
+          ┌───────────────────────────┐       ┌───────────────────────────┐
+          │  Clinical Perturbation    │       │    WavLM Base Embedding   │
+          │ (Jitter, Shimmer, HNR...) │       │  (microsoft/wavlm-base)   │
+          └─────────────┬─────────────┘       └─────────────┬─────────────┘
+                        │                                   │
+                        ▼                                   ▼
+          ┌───────────────────────────┐       ┌───────────────────────────┐
+          │   10 Selected Features    │       │ WavLM Intelligence Layer  │
+          └─────────────┬─────────────┘       │(Spoof, OOD, Quality, Sim) │
+                        │                     └─────────────┬─────────────┘
+                        ▼                                   │
+          ┌───────────────────────────┐                     │
+          │ Calibrated SVM Classifier │                     │
+          └─────────────┬─────────────┘                     │
+                        │                                   │
+                        └─────────────────┬─────────────────┘
+                                          │ (Classifier Margin & Audits)
+                                          ▼
+                           ┌──────────────────────────┐
+                           │ Clinical Decision Engine │ (Logical overrides)
+                           └─────────────┬────────────┘
+                                         │
+                                         ▼
+                           ┌──────────────────────────┐
+                           │  Patient DB Timeline &   │ (SQLite Timeline
+                           │   Longitudinal Drift     │  & PCA trajectory)
+                           └─────────────┬────────────┘
+                                         │
+                                         ▼
+                           ┌──────────────────────────┐
+                           │   Response Enrichment     │ (Confidence, SHAP,
+                           │    & Clinical Reports    │  & 3-page PDF File)
+                           └──────────────────────────┘
 ```
 
 ---

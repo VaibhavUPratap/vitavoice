@@ -13,15 +13,14 @@ VitaVoice is split into an enterprise-grade **FastAPI Backend** and a modern **R
 ```mermaid
 graph TD
     User([User Node]) -->|Microphone / Web Audio| FE[React Frontend]
-    FE -->|HTTP POST WAV /api/v1/screen| BE[FastAPI Backend]
+    FE -->|HTTP POST WAV + patient_id /api/v1/screen| BE[FastAPI Backend]
     
     subgraph FastAPI Backend App
         BE -->|1. Rate Limit Middleware| RL{Allowed?}
         RL -->|No| R_429[JSON Response 429]
         RL -->|Yes| VAL[2. Size & Format Validation]
         
-        VAL -->|Valid| QUAL[2.1 Recording Quality Analyzer]
-        QUAL -->|Quality Metrics| INF[3. Inference Pipeline]
+        VAL -->|Valid| INF[3. Pipeline Engine]
         
         subgraph Pipeline Engine
             INF -->|3.1 Preprocessing| PP[Audio Preprocessing Pipeline]
@@ -37,16 +36,34 @@ graph TD
             
             CLF -->|Prediction & Status| OUT[Classification Results]
             CLF -->|Kernel SHAP| SHAP[Feature Contribution Map]
+            
+            F_EMB -->|3.5 WavLM AI Intelligence Layer| W_VFY[WavLM Audits Engine]
+            
+            subgraph WavLM Audits Engine
+                W_VFY -->|Spoof Check| AUTH[Recording Authenticity Auditor]
+                W_VFY -->|Anomaly Check| OOD[One-Class SVM OOD Detector]
+                W_VFY -->|Cohort Check| SIM[Fingerprint Similarity Engine]
+                W_VFY -->|Signal Check| QA[Neural Quality Auditor]
+                
+                AUTH & OOD & SIM & QA -->|Trust Metric| TRUST[Confidence / Trust Auditor]
+            end
         end
         
-        OUT & SHAP -->|4. Response Enrichment| ENRICH[Response Enrichment Module]
-        ENRICH -->|Enriched Data & Metrics| REP[5. Clinical Summary Report]
-        REP -->|6. PDF Generation| PDF[ReportLab Document Builder]
+        OUT & SHAP & TRUST -->|4. Clinical Decision Engine| CDE{CDE Logic Gates}
+        
+        CDE -->|Logical Override / Override Status| OVERRIDE[Overridden Risk & Status]
+        
+        OVERRIDE -->|5. SQLite Patient Timeline| DB_SERV[Patient DB Service]
+        DB_SERV -->|Read Baseline & History| DRIFT[Drift & Timeline Coordinates]
+        
+        DRIFT & OVERRIDE -->|6. Response Enrichment| ENRICH[Response Enrichment Module]
+        ENRICH -->|Enriched Data & Metrics| REP[7. Enriched Health Report]
+        REP -->|8. PDF Generation| PDF[3-page ReportLab Document Builder]
     end
     
     PDF -->|Save PDF| STR[Reports Static Directory]
     STR -->|Static PDF Link /api/v1/reports| FE
-    PCA_PROJ -->|2D Coordinates| FE
+    PCA_PROJ -->|2D Coordinates & Drift Path| FE
     
     subgraph Background Processes
         BG[Async File Cleanup Job] -.->|Every 10 min: Delete files > 1hr old| STR
@@ -74,31 +91,46 @@ Before passing raw audio to the machine learning model, a dedicated **Recording 
 
 ---
 
-## 3. Machine Learning & Feature Space Decoupling
+## 3. Machine Learning & Independent AI Verification Layer
 
-To prevent Out-Of-Distribution (OOD) neural embeddings of real-world recordings from biasing the classification engine, the platform implements a decoupled machine learning architecture:
+To prevent Out-Of-Distribution (OOD) neural embeddings from corrupting clinical predictions and to ensure explainable audit trails, the system implements a completely decoupled design. Raw acoustic classification is performed by a calibrated SVM, while the **WavLM Base Neural Model** acts as an independent AI Intelligence Layer:
 
-### Feature Space Definition
-- **Clinical Acoustic Biomarkers**: Fundamental frequency ($F0$), local jitter (frequency stability), local shimmer (amplitude stability), Harmonics-to-Noise Ratio (HNR), Noise-to-Harmonics Ratio (NHR), Formants ($F1$-$F3$), RMS energy, MFCCs ($1$-$13$), Zero-Crossing Rate, and Chroma features ($1$-$12$). This yields a 22-dimensional clinical + nonlinear feature vector, further optimized to **10 selected features** using L1 regularization.
-- **Deep Speech Representations**: A 768-dimensional contextual embedding extracted from the mean-pooled last hidden state of a pretrained **WavLM Base** model (`microsoft/wavlm-base`) used exclusively for visual clustering layout.
+### 3.1 WavLM AI Intelligence Audits
+- **Fingerprint & Similarity Engine**: Passes the mean-pooled 768-D speaker vector through cosine and Mahalanobis distance metrics against clinical target cohorts. A $k$-nearest neighbors (KNN) classification is run on the visual cluster coordinates to trace close cohort neighbors.
+- **Recording Authenticity & Spoof Auditor**: Inspects the recording for robotic/synthetic speech patterns, audio compression codecs, and playback loopback attacks by evaluating:
+  - Spectral Flatness standard deviation (to flag unnatural frequency flatness).
+  - Robotic Pitch Monotonicity (F0 variance over speech segments).
+  - Saturation Clipping Ratio.
+- **Out-of-Distribution (OOD) Detector**: Employs a One-Class SVM boundary in WavLM space. Distances outside the normal healthy/Parkinson's voice distributions flag OOD recordings (e.g. coughs, ambient noise, non-human sounds).
+- **Neural Quality Auditor**: Cross-references SNR levels, background noise profiles, and speech segment coverage thresholds against reference quality distributions.
+- **Confidence & Trust Auditor**: Calibrates an overall Trust Level (High, Medium, Low) by fusing classifier probability margins, OOD boundaries, spoof risk metrics, and database-tracked timeline variance.
 
-### Classification & Explainability
-- **Clinical Feature Classification**: The 10 selected clinical features are scaled and fed into an optimized Calibrated SVM classifier to predict Parkinson's risk probability and status. Decoupling the neural WavLM embeddings from the classification model ensures high generalization to real-world voice inputs.
-- **2D Embedding Visualization**: The WavLM Base neural embedding is projected to 2D coordinates using a pretrained PCA component for UI cluster mapping.
-- **Explainable AI (SHAP)**: Computes Kernel SHAP/TreeSHAP values using the scaled 10-dimensional selected clinical feature space, mapping feature attributions of the top 5 biomarkers to the frontend dashboard.
+### 3.2 Clinical Decision Engine (CDE) Logic Gates
+The CDE acts as a logical gatekeeping layer that overrides forced SVM risk categories to prevent diagnostic mistakes:
+- **Rule 1.1 (Severe Poor Quality)**: If overall quality score is $\le 1.5$ stars, set status to `2` (Suspended) and request re-recording.
+- **Rule 1.2 (Severe Out-of-Distribution)**: If the voice sample is out-of-distribution, override classification status to `1` (Inconclusive) and label the result as OOD.
+- **Rule 1.3 (Authenticity Violation)**: If spoofing/replay attack is detected, suspend the screening process immediately.
+- **Rule 1.4 (Borderline High Variance)**: If the classifier prediction lies near the decision boundary and the trust score is low, override the category to "Inconclusive - High Variance".
 
 ---
 
-## 4. Response Enrichment & Clinical Reports
+## 4. SQLite Patient Timeline & Longitudinal Drift
 
-Once the classification results and SHAP attributions are computed, a **Response Enrichment Module** compiles clinical annotations before serving the payload:
+The backend integrates an enterprise SQLite patient service to track longitudinal voice trajectories:
+- **Timeline SQLite Database (`PatientDBService`)**: Stores patient credentials, session IDs, timestamps, raw acoustic scores, decision reasons, and the compressed 2D coordinates.
+- **Voice Baseline Calibration**: Automatically identifies the patient's initial screening as their "acoustic baseline."
+- **Voice Drift Vector Trajectory**: Computes the Euclidean distance and angle between the patient's current coordinate and their baseline embedding. If a patient's voice coordinate drifts significantly towards the pathology reference cluster across sessions, it flags a progressive vocal instability trend.
+- **Frontend Trajectory Mapping**: The UI query hook fetches the timeline array and dynamically draws a chronological vector path linking coordinate history on the latent space chart.
+
+---
+
+## 5. Response Enrichment & Clinical Reports
+
+Once the CDE gates and DB timeline operations are complete, the **Response Enrichment Module** compiles annotations:
 - **Certainty Calibration**: Translates raw risk margins into confidence labels ("Very High", "High", "Moderate", "Low") and prediction reliability ratings.
 - **Top Biomarkers Extraction**: Automatically maps mathematical SHAP values to positive/negative directional indicators (e.g., $\uparrow$ Jitter, $\downarrow$ HNR) with human-readable clinical explanations.
-- **Natural Language Explanations**: Generates a plain-English narrative summarizing the primary biomarkers driving the risk assessment.
-- **Clinical Recommendations**: Stratifies actionable steps based on risk boundaries (e.g., quiet retesting for moderate risk; neurological consultations for high risk).
-- **PDF Report Generation**: Invokes a custom ReportLab builder to output clean clinical summaries containing the quality analysis, UMAP projections, SHAP attributions, recommendations, and responsible AI points.
-
----
+- **Responsible AI Guardrails**: Adds explicit disclaimers regarding pre-clinical screening boundaries.
+- **PDF Report Generation**: Invokes a custom ReportLab builder to compile a 3-page clinical-grade report containing the patient timeline trend, acoustic quality verification table, SHAP attributions, recommendations, and baseline drift.
 
 ## 5. Clinical Copilot & Fallback Architecture
 

@@ -57,17 +57,20 @@ VitaVoice prioritizes explainable AI by mapping model predictions directly to ph
 
 ## 5. Algorithmic Safeguards & Mitigations
 
-To prevent automated diagnostic misinterpretation and ensure safe usage, VitaVoice incorporates two major software safeguards:
+To prevent automated diagnostic misinterpretation, identify recording tampering, and detect out-of-distribution voice inputs, VitaVoice incorporates three critical algorithmic safeguards:
 
-### A. Pre-Inference Recording Quality Control
-Low-quality audio (e.g., quiet whisper, loud background noise, digital clipping) leads to garbage-in, garbage-out model behavior. 
-- **SNR and Noise Assessment**: Standardizes sample analysis. Audio with high noise percentage (>50%) or low SNR (<10 dB) is flagged as "Noisy".
-- **Clipping Detection**: Alerts when the signal exceeds a critical threshold ($\ge 0.99$ peak amplitude), indicating digital distortion.
-- **Suitability Filtering**: Assigns a 1-5 star quality score. Any audio rated $\le 2$ stars generates a clear warning label instructing the user that results are less reliable due to recording conditions.
+### A. Pre-Inference & Neural Quality Control
+- **Acoustic & Signal Integrity**: Gathers background noise floor, speech segment coverage, and digital saturation clipping metrics. High noise levels (>50%) or low SNR (<15 dB) flag the audio as "Noisy".
+- **Neural Quality Auditing**: Compares WavLM embeddings against reference quality clusters to detect room reverb or acoustic anomalies.
 
-### B. Post-Inference Response Enrichment
-Raw prediction probabilities can be confusing or alarming. The backend enriches raw classification outputs into clear, safe clinical contexts:
-- **Certainty Calibration**: Reports margin-based confidence tiers ("Very High", "High", "Moderate", "Low") to signal when a user's voice is close to the decision boundary (high variance/low certainty) or highly defined.
-- **Risk-Stratified Actionable Recommendations**: Generates tailored clinical suggestions based on risk. Low risk recommends wellness tracking; moderate risk recommends retesting in quiet rooms to eliminate transient acoustic biases; high risk recommends formal ENT/Neurological diagnostic assessments.
-- **Explainable AI (SHAP) & Natural Language**: Automatically synthesizes complex SHAP vector arrays into a plain-English explanation (e.g., "screening result was primarily influenced by increased vocal jitter, which may indicate minor speech irregularities...") to demystify "black-box" predictions.
-- **Direct Disclaimers**: Ensures the generated PDF reports and interactive frontend feature explicit responsible AI disclaimers clarifying that the tool is a wellness screening aid, not a diagnostic platform.
+### B. Independent WavLM AI Audits & CDE Logic Gates
+Instead of feeding deep neural embeddings directly into the diagnostic classifier (which risks model overfitting or black-box failures), WavLM Base acts as an independent auditor. The **Clinical Decision Engine (CDE)** acts on these audit outputs using logical rule gates:
+- **Recording Authenticity & Spoof Protection**: The CDE suspends the screening process (Status `2` - Suspended) if standard deviation of spectral flatness ($Th < 0.08$) or robotic pitch monotonicity checks indicate synthetic vocal tracks or loopback replay attacks.
+- **Out-of-Distribution Safety**: The CDE overrides risk classification to "Inconclusive" (Status `1` - Inconclusive) if the voice sample fails the One-Class SVM boundary check, signaling that the user input was not a clean vowel phonation.
+- **Low Quality Suspensions**: Screening is suspended if the neural quality auditor rates the input $\le 1.5$ stars, preventing "garbage-in, garbage-out" classifier behavior.
+- **Confidence Calibration**: Adjusts clinical categories when the classifier margin is narrow and historical matching variance is high, labeling results as "Inconclusive - High Variance" to avoid false positive alarms.
+
+### C. SQLite Patient timeline & Voice Drift Tracking
+- **Baseline Voice Calibration**: Establishes the patient's first valid screening as their longitudinal "vocal baseline."
+- **Voice Drift Monitoring**: Computes the Euclidean distance (drift magnitude) and vector trajectory direction of subsequent screenings in 2D space. A progressive drift path shifting towards the pathology reference cohort flags cumulative vocal instability over time, indicating a potential clinical progression trend.
+- **3-Page Detailed PDF Report**: Includes the baseline drift path, quality audit logs, cohort similarity scores, SHAP explanations, and patient history tables to give speech therapists and neurologists clear, verifiable contexts.
