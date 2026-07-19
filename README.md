@@ -15,7 +15,7 @@ By combining **clinical acoustic digital signal processing** with **modern trans
 
 - **Interactive Vocal Signal & Feature Analyzer**: Live canvas-less SVG spectrogram visualizer on the home page responding directly to mouse gestures with real-time frequency/amplitude tooltips.
 - **Pre-Inference Quality Guardrails**: Standardizes audio inputs by analyzing background noise, Signal-to-Noise Ratio (SNR), and clipping prior to model prediction to flag low-quality recordings.
-- **Decoupled Acoustic & Neural Pipeline**: Extracts 48 clinical acoustic biomarkers (Jitter, Shimmer, HNR, F0 fundamental pitch, Formants, Energy, Spectral features, MFCCs, and Chroma) for highly generalizable Random Forest classification, and leverages 768-dimensional WavLM Base embeddings for 2D visual cluster maps.
+- **Decoupled Acoustic & Neural Pipeline**: Extracts clinical acoustic biomarkers (optimized to **10 selected features** using L1 regularization to reduce collinearity) for highly generalizable **Calibrated SVM** classification, and leverages 768-dimensional WavLM Base embeddings for 2D visual cluster maps.
 - **Explainable AI (SHAP)**: Provides a feature-by-feature SHAP importance analysis showing which vocal biomarkers contribute positively or negatively to the risk score.
 - **Interactive PCA Embedding Space**: Visualizes the patient's voice coordinate relative to reference healthy control and pathology cohorts on a 2D cluster map.
 - **Clinical Response Enrichment**: Translates raw machine learning scores into margin-based confidence levels, risk-stratified actionable plans/recommendations, and natural language explanations.
@@ -52,12 +52,12 @@ By combining **clinical acoustic digital signal processing** with **modern trans
                        │                                   │ (768-dim PCA)
                        ▼                                   ▼
          ┌───────────────────────────┐       ┌───────────────────────────┐
-         │   48 Acoustic Features    │       │   2D Cluster Coordinates  │
+         │   10 Selected Features    │       │   2D Cluster Coordinates  │
          └─────────────┬─────────────┘       └─────────────┬─────────────┘
                        │                                   │
                        ▼                                   ▼
          ┌───────────────────────────┐       ┌───────────────────────────┐
-         │  Random Forest Classifier │       │   2D PCA Cluster Map      │
+         │ Calibrated SVM Classifier │       │   2D PCA Cluster Map      │
          └─────────────┬─────────────┘       └───────────────────────────┘
                        │
                        ▼
