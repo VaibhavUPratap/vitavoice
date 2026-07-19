@@ -17,7 +17,7 @@ import time
 import logging
 import json
 import asyncio
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Request, APIRouter
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Request, APIRouter, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
@@ -31,6 +31,9 @@ from app.recording_quality import analyze_recording_quality
 from app.response_enrichment import enrich_response
 from ml.inference.predict import VitaVoicePredictor
 from ml.training.train import train_vita_voice
+from app.api.endpoints.patients import router as patients_router
+from app.services.decision_engine import ClinicalDecisionEngine
+from app.services.patient_db import PatientDBService
 
 # Initialize logging configuration to output structured JSON logs
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -216,7 +219,11 @@ def trigger_training(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Model training started in the background."}
 
 @app.post("/api/v1/screen")
-async def screen_voice(request: Request, file: UploadFile = File(...)):
+def screen_voice(
+    request: Request, 
+    file: UploadFile = File(...),
+    patient_id: str = Form(None)
+):
     # Validate content length to enforce size constraints
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.MAX_CONTENT_LENGTH:
@@ -256,8 +263,80 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
         # Analyze recording quality BEFORE inference (file still on disk)
         recording_quality = analyze_recording_quality(file_path)
         
-        # Run ML prediction
+        # Run ML prediction (Modular WavLM audits)
         result = predictor.predict_audio(file_path, recording_quality=recording_quality)
+        
+        # Instantiate DB and Clinical Decision Engine
+        db_service = PatientDBService()
+        decision_engine = ClinicalDecisionEngine()
+        
+        # Query historical baseline
+        history = db_service.get_patient_history(patient_id) if patient_id else None
+        baseline_embedding = db_service.get_patient_baseline(patient_id) if patient_id else None
+        
+        # Run logical decision fusion
+        decision_info = decision_engine.run_rules(
+            svm_risk=result.get('risk_score', 0.5),
+            svm_trust=result.get('wavlm_confidence', {
+                'trust_score': 50.0,
+                'trust_level': 'Medium',
+                'reasons': []
+            }),
+            quality_info=result.get('wavlm_quality', {
+                'overall_score': 4.0,
+                'quality_stars': '★★★★☆',
+                'recording_reliability': 'High',
+                're_record_recommended': False,
+                'reasons': []
+            }),
+            ood_info=result.get('wavlm_ood', {
+                'is_ood': False,
+                'ood_probability': 10.0,
+                'reason': 'In-distribution'
+            }),
+            similarity_info=result.get('wavlm_similarity', {
+                'similarity_healthy': 50.0,
+                'similarity_parkinsons': 50.0,
+                'nearest_cluster': 'Healthy Cluster',
+                'embedding_confidence': 'Low'
+            }),
+            authenticity_info=result.get('wavlm_authenticity', {
+                'authenticity_score': 100.0,
+                'is_authentic': True,
+                'warnings': []
+            }),
+            history=history,
+            baseline_embedding=baseline_embedding,
+            current_embedding=result.get('w2v_embedding')
+        )
+        
+        # Merge decision engine outputs into result payload
+        result['decision_engine'] = {
+            "status": decision_info['status'],
+            "status_label": decision_info['status_label'],
+            "risk_score": decision_info['risk_score'],
+            "confidence_score": decision_info['trust_score'],
+            "confidence_label": decision_info['trust_level'],
+            "decision_reasoning": decision_info['decision_reasoning'],
+            "recommendation": decision_info['recommendation']
+        }
+        
+        # Persist screening record to SQLite patient timeline
+        if patient_id:
+            emb = result.get('w2v_embedding')
+            if emb is None:
+                emb = np.zeros(768)
+            db_service.save_screening(
+                patient_id=patient_id,
+                screening_id=file_id,
+                risk_score=result.get('risk_score', 0.5),
+                trust_score=decision_info.get('trust_score', 50.0),
+                trust_level=decision_info.get('trust_level', 'Medium'),
+                embedding=emb,
+                clinical_metrics=result.get('clinical_metrics', {}),
+                decision_reasoning=decision_info.get('decision_reasoning', ''),
+                recommendation=decision_info.get('recommendation', '')
+            )
         
         # Enrich response with confidence, explanation, recommendation, etc.
         enriched = enrich_response(result)
@@ -300,6 +379,7 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
         return {
             "success": True,
             "prediction_id": file_id,
+            "patient_id": patient_id,
             "filename": file.filename,
             "risk_score": result['risk_score'],
             "status": result['status'],
@@ -318,6 +398,11 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
             "responsible_ai": enriched['responsible_ai'],
             "responsible_ai_points": enriched['responsible_ai_points'],
             "biomarker_statuses": enriched['biomarker_statuses'],
+            "wavlm_authenticity": result.get('wavlm_authenticity'),
+            "wavlm_confidence": result.get('wavlm_confidence'),
+            "nearest_neighbors": result.get('nearest_neighbors'),
+            "longitudinal_drift": decision_info.get('longitudinal_drift'),
+            "decision_engine": result.get('decision_engine')
         }
         
     except Exception as e:
@@ -390,6 +475,7 @@ async def get_clinical_copilot_insight(payload: AnalysisRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(router)
+app.include_router(patients_router)
 
 # Mount frontend build directory to serve static React SPA
 frontend_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
