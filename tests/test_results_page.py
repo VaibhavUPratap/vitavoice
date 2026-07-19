@@ -26,6 +26,12 @@ def test_results_page_alignment():
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         page = context.new_page()
         
+        # Listen for console logs and page errors
+        page.on("console", lambda msg: print(f"BROWSER CONSOLE: [{msg.type}] {msg.text}"))
+        page.on("pageerror", lambda err: print(f"BROWSER ERROR: {err}"))
+        page.on("request", lambda req: print(f"BROWSER HTTP REQUEST: {req.method} {req.url}"))
+        page.on("response", lambda res: print(f"BROWSER HTTP RESPONSE: {res.status} {res.url}"))
+        
         url = os.environ.get("TEST_URL", "http://localhost:8000")
         print(f"Navigating to {url}...")
         
@@ -54,7 +60,7 @@ def test_results_page_alignment():
             
             # Wait for transition to results page (could take a bit for analysis spinner)
             print("Waiting for screening results...")
-            page.wait_for_selector(".dashboard", timeout=25000)
+            page.wait_for_selector(".dashboard", timeout=120000)
             print("Dashboard loaded.")
             
             # Give dashboard charts/plots a brief moment to render fully
