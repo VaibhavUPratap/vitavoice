@@ -94,20 +94,22 @@ def enrich_response(result: dict) -> dict:
     confidence_cal = result.get("confidence_calibration", {})
     shap_explanation = result.get("shap_explanation", [])
     clinical_metrics = result.get("clinical_metrics", {})
+    
+    decision_engine = result.get("decision_engine", {})
 
-    # Confidence & reliability
-    confidence_score = _compute_confidence_score(confidence_cal)
-    confidence_label = _compute_confidence_label(confidence_score)
+    # Confidence & reliability (Overridden by Decision Engine if available)
+    confidence_score = decision_engine.get("confidence_score", _compute_confidence_score(confidence_cal))
+    confidence_label = decision_engine.get("confidence_label", _compute_confidence_label(confidence_score))
     prediction_reliability = _compute_prediction_reliability(confidence_score)
 
     # Directional biomarkers from SHAP
     top_biomarkers = _extract_top_biomarkers(shap_explanation)
 
-    # Natural language explanation
-    explanation = _generate_explanation(shap_explanation, risk_score)
+    # Natural language explanation (Overridden by Decision Engine)
+    explanation = decision_engine.get("decision_reasoning", _generate_explanation(shap_explanation, risk_score))
 
-    # Clinical recommendation
-    recommendation = _generate_recommendation(risk_score)
+    # Clinical recommendation (Overridden by Decision Engine)
+    recommendation = decision_engine.get("recommendation", _generate_recommendation(risk_score))
 
     # Biomarker statuses
     biomarker_statuses = _compute_biomarker_statuses(clinical_metrics)

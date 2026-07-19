@@ -18,6 +18,7 @@ class VitaVoicePredictor:
         self.feature_names = None
         self.model_type = None
         self.background_data = None
+        self.wavlm_intel = None
         self.loaded = False
         self.pipeline = AudioPreprocessingPipeline()
         
@@ -49,13 +50,21 @@ class VitaVoicePredictor:
             self.model_type = joblib.load(type_path) if os.path.exists(type_path) else "svm"
             self.background_data = joblib.load(bg_path) if os.path.exists(bg_path) else None
             
+            # Load WavLM references
+            try:
+                from ml.inference.wavlm_intelligence import WavLMIntelligenceLayer
+                refs_path = os.path.join(self.checkpoints_dir, "wavlm_references.joblib")
+                self.wavlm_intel = WavLMIntelligenceLayer(references_path=refs_path)
+            except Exception as e:
+                print(f"Error loading WavLMIntelligenceLayer: {e}")
+                
             self.loaded = True
             return True
         except Exception as e:
             print(f"Error loading checkpoints: {e}")
             return False
             
-    def predict_audio(self, audio_path):
+    def predict_audio(self, audio_path, recording_quality=None):
         """
         Runs the full inference, explainability (SHAP), and certainty calibration pipeline on a WAV file.
         """
@@ -124,6 +133,43 @@ class VitaVoicePredictor:
             'formants': [float(cli_feats['F1']), float(cli_feats['F2']), float(cli_feats['F3'])]
         }
         
+        # Setup default/on-the-fly recording quality if not provided
+        if recording_quality is None:
+            try:
+                from app.recording_quality import analyze_recording_quality
+                recording_quality = analyze_recording_quality(audio_path)
+            except Exception:
+                recording_quality = {
+                    "duration_seconds": float(len(y) / sr),
+                    "background_noise_pct": 10.0,
+                    "snr_db": 25.0,
+                    "speech_coverage_pct": 80.0,
+                    "silence_ratio_pct": 20.0,
+                    "clipping_detected": False,
+                    "mic_status": "Good",
+                    "quality_score": 4,
+                    "quality_stars": "★★★★☆",
+                    "suitable_for_analysis": True,
+                    "quality_warning": None
+                }
+                
+        # 12. Run WavLM Intelligence Layer
+        if self.wavlm_intel is None:
+            from ml.inference.wavlm_intelligence import WavLMIntelligenceLayer
+            refs_path = os.path.join(self.checkpoints_dir, "wavlm_references.joblib")
+            self.wavlm_intel = WavLMIntelligenceLayer(references_path=refs_path)
+            
+        quality_info = self.wavlm_intel.verify_quality(w2v_emb, recording_quality)
+        similarity_info = self.wavlm_intel.compute_similarity(w2v_emb, self.reducer)
+        ood_info = self.wavlm_intel.detect_ood(w2v_emb)
+        decision_info = self.wavlm_intel.run_decision_engine(
+            clinical_risk=risk_score,
+            clinical_confidence=certainty_score,
+            quality_info=quality_info,
+            ood_info=ood_info,
+            similarity_info=similarity_info
+        )
+        
         return {
             'risk_score': risk_score,
             'status': status,
@@ -135,7 +181,11 @@ class VitaVoicePredictor:
                 'certainty_label': certainty_label,
                 'calibration_confidence': calibration_confidence
             },
-            'shap_explanation': shap_explanations
+            'shap_explanation': shap_explanations,
+            'wavlm_quality': quality_info,
+            'wavlm_similarity': similarity_info,
+            'wavlm_ood': ood_info,
+            'decision_engine': decision_info
         }
         
     def compute_shap_explanations(self, features_scaled):

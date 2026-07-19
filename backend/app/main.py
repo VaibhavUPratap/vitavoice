@@ -257,7 +257,7 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
         recording_quality = analyze_recording_quality(file_path)
         
         # Run ML prediction
-        result = predictor.predict_audio(file_path)
+        result = predictor.predict_audio(file_path, recording_quality=recording_quality)
         
         # Enrich response with confidence, explanation, recommendation, etc.
         enriched = enrich_response(result)
@@ -286,6 +286,10 @@ async def screen_voice(request: Request, file: UploadFile = File(...)):
             recommendation=enriched['recommendation'],
             natural_language_explanation=enriched['natural_language_explanation'],
             biomarker_statuses=enriched['biomarker_statuses'],
+            wavlm_quality=result.get('wavlm_quality'),
+            wavlm_similarity=result.get('wavlm_similarity'),
+            wavlm_ood=result.get('wavlm_ood'),
+            decision_engine=result.get('decision_engine'),
         )
         report_url = f"/api/v1/reports/report_{file_id}.pdf"
         

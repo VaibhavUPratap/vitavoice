@@ -101,35 +101,80 @@ def train_vita_voice(dataset_type="oxford", root_dir="datasets", reduction_metho
     # Save a copy of training scaled dataset to use as background for SHAP Explainer
     joblib.dump(X_scaled, os.path.join(checkpoints_dir, "background_data.joblib"))
     
-    # 5. Define Benchmark Classifiers (Omitting OpenMP-conflicting XGBoost/LightGBM)
-    models = {
-        'svm': SVC(kernel='rbf', C=2.0, probability=True, random_state=42),
-        'random_forest': RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42),
-        'logistic_regression': LogisticRegression(C=1.0, max_iter=1000, random_state=42)
+    # 5. Define Benchmark Classifiers with Parameter Grids
+    from sklearn.model_selection import RandomizedSearchCV
+    from sklearn.base import clone
+    
+    grids = {
+        'svm': {
+            'estimator': SVC(probability=True, random_state=42),
+            'params': {
+                'C': [0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
+                'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1.0],
+                'kernel': ['rbf', 'linear', 'poly']
+            },
+            'n_iter': 30
+        },
+        'random_forest': {
+            'estimator': RandomForestClassifier(random_state=42),
+            'params': {
+                'n_estimators': [100, 200, 300, 500],
+                'max_depth': [4, 6, 8, 10, 12, None],
+                'min_samples_split': [2, 3, 5, 8],
+                'min_samples_leaf': [1, 2, 3],
+                'max_features': ['sqrt', 'log2', 0.2, 0.3, 0.4],
+                'criterion': ['gini', 'entropy'],
+                'class_weight': ['balanced', None]
+            },
+            'n_iter': 60
+        },
+        'logistic_regression': {
+            'estimator': LogisticRegression(max_iter=1000, random_state=42),
+            'params': {
+                'C': [0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
+                'penalty': ['l1', 'l2'],
+                'solver': ['liblinear', 'saga']
+            },
+            'n_iter': 20
+        }
     }
     
     # 6. Benchmarking using 5-Fold Stratified Cross-Validation
-    print("\nStarting model benchmarking (5-Fold Stratified Cross-Validation)...")
+    print("\nStarting model benchmarking and hyperparameter optimization...")
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     
     benchmarks = {}
+    best_tuned_models = {}
     
-    for model_name, model in models.items():
-        print(f"Evaluating {model_name}...")
+    for model_name, config in grids.items():
+        print(f"Optimizing hyperparameters for {model_name}...")
+        search = RandomizedSearchCV(
+            estimator=config['estimator'],
+            param_distributions=config['params'],
+            n_iter=config['n_iter'],
+            cv=skf,
+            scoring='f1',
+            random_state=42,
+            n_jobs=-1
+        )
+        search.fit(X_scaled, y_arr)
+        
+        best_model = search.best_estimator_
+        best_tuned_models[model_name] = best_model
+        print(f"Best parameters for {model_name}: {search.best_params_}")
+        
         accs, precs, recs, f1s, aucs = [], [], [], [], []
         
         for train_idx, val_idx in skf.split(X_scaled, y_arr):
             X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
             y_train, y_val = y_arr[train_idx], y_arr[val_idx]
             
-            # Train
-            model.fit(X_train, y_train)
+            fold_model = clone(best_model)
+            fold_model.fit(X_train, y_train)
             
-            # Predict
-            y_pred = model.predict(X_val)
-            y_prob = model.predict_proba(X_val)[:, 1]
+            y_pred = fold_model.predict(X_val)
+            y_prob = fold_model.predict_proba(X_val)[:, 1]
             
-            # Compute metrics
             accs.append(accuracy_score(y_val, y_pred))
             precs.append(precision_score(y_val, y_pred, zero_division=0))
             recs.append(recall_score(y_val, y_pred, zero_division=0))
@@ -155,12 +200,12 @@ def train_vita_voice(dataset_type="oxford", root_dir="datasets", reduction_metho
     with open(os.path.join(checkpoints_dir, "model_benchmarks.json"), "w") as f:
         json.dump(benchmarks, f, indent=2)
         
-    # 8. Auto-Select Best Model (Based on highest F1-Score)
-    best_model_name = max(benchmarks, key=lambda k: benchmarks[k]['f1'])
-    print(f"\nAuto-Selected Winner: **{best_model_name.upper()}** (F1-Score: {benchmarks[best_model_name]['f1']:.4f})")
+    # 8. Select Random Forest as the diagnostic model (Enforce Random Forest)
+    best_model_name = 'random_forest'
+    print(f"\nSelected Diagnostic Model: **{best_model_name.upper()}** (F1-Score: {benchmarks[best_model_name]['f1']:.4f})")
     
     # Train winning model on all data
-    best_model = models[best_model_name]
+    best_model = best_tuned_models[best_model_name]
     best_model.fit(X_scaled, y_arr)
     
     # Save winning checkpoint
@@ -168,6 +213,66 @@ def train_vita_voice(dataset_type="oxford", root_dir="datasets", reduction_metho
     joblib.dump(best_model_name, os.path.join(checkpoints_dir, "model_type.joblib"))
     print(f"Saved best model checkpoint and type '{best_model_name}' to checkpoints.")
     
+    # 9. Build and Save WavLM Reference Assets
+    try:
+        print("\nGenerating WavLM references...")
+        from sklearn.svm import OneClassSVM
+        from sklearn.covariance import LedoitWolf
+        
+        y_arr_np = np.array(y_arr)
+        healthy_mask = (y_arr_np == 0)
+        parkinsons_mask = (y_arr_np == 1)
+        
+        healthy_centroid = np.mean(X_w2v, axis=0) if not np.any(healthy_mask) else np.mean(X_w2v[healthy_mask], axis=0)
+        parkinsons_centroid = np.mean(X_w2v, axis=0) if not np.any(parkinsons_mask) else np.mean(X_w2v[parkinsons_mask], axis=0)
+        
+        # Fit OOD Detector (OneClassSVM)
+        ood_detector = OneClassSVM(nu=0.05, kernel='rbf', gamma='scale')
+        ood_detector.fit(X_w2v)
+        
+        # Calculate OOD threshold
+        train_scores = ood_detector.score_samples(X_w2v)
+        ood_threshold = float(np.percentile(train_scores, 5))
+        
+        # Reduced embeddings for Mahalanobis
+        if reducer is not None:
+            X_w2v_reduced = reducer.transform(X_w2v)
+        else:
+            X_w2v_reduced = X_w2v
+            
+        mean_healthy_reduced = np.mean(X_w2v_reduced, axis=0) if not np.any(healthy_mask) else np.mean(X_w2v_reduced[healthy_mask], axis=0)
+        mean_parkinsons_reduced = np.mean(X_w2v_reduced, axis=0) if not np.any(parkinsons_mask) else np.mean(X_w2v_reduced[parkinsons_mask], axis=0)
+        
+        # Estimate covariance with Ledoit-Wolf shrinkage
+        h_cov_samples = X_w2v_reduced[healthy_mask] if np.any(healthy_mask) else X_w2v_reduced
+        p_cov_samples = X_w2v_reduced[parkinsons_mask] if np.any(parkinsons_mask) else X_w2v_reduced
+        
+        cov_healthy = LedoitWolf().fit(h_cov_samples).covariance_
+        cov_parkinsons = LedoitWolf().fit(p_cov_samples).covariance_
+        
+        # Invert with small regularization
+        reg = 1e-4 * np.eye(X_w2v_reduced.shape[1])
+        cov_healthy_inv = np.linalg.inv(cov_healthy + reg)
+        cov_parkinsons_inv = np.linalg.inv(cov_parkinsons + reg)
+        
+        references = {
+            'healthy_centroid': healthy_centroid,
+            'parkinsons_centroid': parkinsons_centroid,
+            'train_embeddings': X_w2v,
+            'train_labels': y_arr_np,
+            'ood_detector': ood_detector,
+            'ood_threshold': ood_threshold,
+            'mean_healthy_reduced': mean_healthy_reduced,
+            'mean_parkinsons_reduced': mean_parkinsons_reduced,
+            'cov_healthy_inv': cov_healthy_inv,
+            'cov_parkinsons_inv': cov_parkinsons_inv
+        }
+        
+        joblib.dump(references, os.path.join(checkpoints_dir, "wavlm_references.joblib"))
+        print("WavLM references generated and saved successfully.")
+    except Exception as e:
+        print(f"Error generating WavLM references during training: {e}")
+        
     return True
 
 if __name__ == "__main__":

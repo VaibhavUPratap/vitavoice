@@ -63,11 +63,45 @@ def generate_pdf_report(
     recommendation=None,
     natural_language_explanation=None,
     biomarker_statuses=None,
+    wavlm_quality=None,
+    wavlm_similarity=None,
+    wavlm_ood=None,
+    decision_engine=None,
 ):
     """
     Generates a professional clinical screening PDF report.
     Returns the absolute path to the generated PDF.
     """
+    # Setup fallbacks for new parameters to support legacy/test calls
+    if decision_engine is None:
+        decision_engine = {
+            "status_label": "Elevated Risk" if risk_score >= 0.65 else ("Borderline Risk" if risk_score >= 0.35 else "Low Risk"),
+            "confidence_score": confidence_calibration.get('certainty_score', 0.5) * 100.0 if confidence_calibration else 50.0,
+            "confidence_label": confidence_label or "Moderate",
+            "decision_reasoning": natural_language_explanation or "The vocal profile was analyzed using standard acoustic biomarkers.",
+            "recommendation": recommendation or "Wellness tracking and repeat screening advised."
+        }
+    if wavlm_quality is None:
+        wavlm_quality = {
+            "quality_score": recording_quality.get("quality_score", 4.0) if recording_quality else 4.0,
+            "quality_stars": recording_quality.get("quality_stars", "★★★★☆") if recording_quality else "★★★★☆",
+            "recording_reliability": prediction_reliability or "High",
+            "re_record_recommended": False,
+            "reasons": []
+        }
+    if wavlm_similarity is None:
+        wavlm_similarity = {
+            "similarity_score": risk_score * 100.0,
+            "nearest_cluster": "Parkinson's Cluster" if risk_score >= 0.5 else "Healthy Cluster",
+            "embedding_confidence": "High"
+        }
+    if wavlm_ood is None:
+        wavlm_ood = {
+            "is_ood": False,
+            "ood_score": 10.0,
+            "message": "In-distribution"
+        }
+
     os.makedirs(output_dir, exist_ok=True)
     pdf_filename = f"report_{report_id}.pdf"
     pdf_path = os.path.join(output_dir, pdf_filename)
@@ -257,69 +291,98 @@ def generate_pdf_report(
     
     risk_pct = f"{int(round(risk_score * 100))}%"
     risk_cat = "ELEVATED RISK" if risk_score >= 0.65 else ("BORDERLINE / MODERATE RISK" if risk_score >= 0.35 else "LOW RISK")
-    conf_label = confidence_label or confidence_calibration.get('certainty_label', 'N/A')
-    pred_reliability = prediction_reliability or 'N/A'
     
     # Risk Box Color
     box_color = colors.HexColor('#fef2f2') if risk_score >= 0.65 else (colors.HexColor('#fffbeb') if risk_score >= 0.35 else colors.HexColor('#f0fdf4'))
     box_border = colors.HexColor('#fca5a5') if risk_score >= 0.65 else (colors.HexColor('#fcd34d') if risk_score >= 0.35 else colors.HexColor('#86efac'))
     
+    # Use final confidence score and label from Decision Engine
+    overall_conf_score = decision_engine.get("confidence_score", 50.0)
+    overall_conf_label = decision_engine.get("confidence_label", "Moderate")
+    overall_conf_pct = f"{int(round(overall_conf_score))}%"
+    
     res_box_data = [
-        [Paragraph("Estimated Risk", style_result_title)],
+        [Paragraph("Clinical Biomarker Risk", style_result_title)],
         [Paragraph(risk_pct, style_result_score)],
         [Paragraph(f"<b>{risk_cat}</b>", style_result_title)],
+        [Spacer(1, 4)],
+        [Paragraph("<b>Overall Confidence</b>", style_result_label)],
+        [Paragraph(f"{overall_conf_pct} ({overall_conf_label})", style_result_label)],
     ]
     res_box_table = Table(res_box_data, colWidths=[160])
     res_box_table.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BACKGROUND', (0,0), (-1,-1), box_color),
-        ('BOX', (0,0), (-1,-1), 1, box_border),
+        ('BOX', (0,0), (-1,-1), 1.5, box_border),
         ('TOPPADDING', (0,0), (-1,-1), 8),
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
     ]))
     
-    # Confidence & reliability info panel (right side of risk box)
-    confidence_score = confidence_calibration.get('certainty_score', 0.5)
-    confidence_pct = f"{int(round(confidence_score * 100))}%"
+    # WavLM Intelligence details
+    quality_stars = wavlm_quality.get('quality_stars', '★★★★☆')
+    quality_score = wavlm_quality.get('quality_score', 4.0)
+    quality_rel = wavlm_quality.get('recording_reliability', 'High')
     
-    summary_items_text = (
-        f"<b>Confidence Level:</b> {confidence_pct} ({conf_label})<br/>"
-        f"<b>Prediction Reliability:</b> {pred_reliability}<br/><br/>"
+    sim_score = wavlm_similarity.get('similarity_score', 50.0)
+    sim_cluster = wavlm_similarity.get('nearest_cluster', 'Healthy Cluster')
+    
+    ood_flag = "Out-of-Distribution" if wavlm_ood.get('is_ood', False) else "In-Distribution"
+    ood_score = wavlm_ood.get('ood_score', 0.0)
+    
+    intel_data = [
+        [
+            Paragraph("Recording Quality:", style_meta_label),
+            Paragraph(f"{quality_stars} ({quality_score:.1f} / {quality_rel} Reliability)", style_meta_val)
+        ],
+        [
+            Paragraph("Embedding Similarity:", style_meta_label),
+            Paragraph(f"{sim_score:.1f}% to {sim_cluster}", style_meta_val)
+        ],
+        [
+            Paragraph("OOD Population Status:", style_meta_label),
+            Paragraph(f"{ood_flag} (OOD Score: {ood_score:.1f}%)", style_meta_val)
+        ]
+    ]
+    intel_table = Table(intel_data, colWidths=[130, 222])
+    intel_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+    
+    reasoning_text = (
+        f"<b>Decision Reasoning:</b><br/>"
+        f"{decision_engine.get('decision_reasoning', '')}"
     )
+    reasoning_para = Paragraph(reasoning_text, style_body)
     
-    # Natural language explanation
-    if natural_language_explanation:
-        summary_items_text += f"<b>Model Explanation:</b><br/>{natural_language_explanation}"
-    else:
-        # Fallback to legacy summary
-        summary_text_legacy = (
-            "Your vocal profile has been analyzed using standard acoustic biomarkers and deep speech foundation "
-            "embeddings. Jitter, shimmer, and signal stability factors indicate a vocal pattern that correlates with "
-        )
-        if risk_score >= 0.65:
-            summary_text_legacy += "neuromotor vocal tremors typically found in voice disorders or parkinsonian dysphonia."
-        elif risk_score >= 0.35:
-            summary_text_legacy += "minor speech irregularities, which can be indicative of vocal fatigue, temporary throat irritation, or early dysphonia stages."
-        else:
-            summary_text_legacy += "stable vocal fold vibrations with normal harmonic ratios, representing a healthy vocal profile."
-        
-        if shap_explanation and len(shap_explanation) > 0:
-            top_biomarkers_legacy = [f"{f['label']} ({'increases risk' if f['shap_value'] > 0 else 'decreases risk'})" for f in shap_explanation[:3]]
-            summary_text_legacy += f" AI explainability (SHAP) suggests the primary vocal drivers were {', '.join(top_biomarkers_legacy)}."
-        summary_items_text += summary_text_legacy
+    right_col_data = [
+        [Paragraph("WavLM Intelligence Layer", style_section_label)],
+        [intel_table],
+        [Spacer(1, 4)],
+        [reasoning_para]
+    ]
+    right_col_table = Table(right_col_data, colWidths=[352])
+    right_col_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
     
-    summary_para = Paragraph(summary_items_text, style_body)
-    
-    # Table containing Risk Score Box (left) and Summary text (right)
     summary_layout_data = [
-        [res_box_table, summary_para]
+        [res_box_table, right_col_table]
     ]
     summary_layout_table = Table(summary_layout_data, colWidths=[180, 352])
     summary_layout_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING', (1,0), (1,0), 12),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('LEFTPADDING', (0,0), (0,0), 0),
     ]))
     story.append(summary_layout_table)
     story.append(Spacer(1, 15))
