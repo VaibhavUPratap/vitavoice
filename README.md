@@ -1,8 +1,8 @@
-# 🎙️ VitaVoice — AI-Powered Vocal Biomarker Health Screener
+# 🎙️ VitaVoice — AI-Powered Vocal & Kinematic Health Screener
 
-VitaVoice is an advanced, non-invasive health screening application that analyzes voice recordings to identify vocal instabilities and dysphonia patterns associated with neurological conditions (e.g., Parkinson's disease).
+VitaVoice is an advanced, non-invasive health screening application that analyzes voice recordings and handwriting kinematics (spiral and wave drawings) to identify instability patterns associated with neurological conditions (e.g., Parkinson's disease).
 
-By combining **clinical acoustic digital signal processing** with **modern transformer-based deep speech representation models (WavLM Base)**, VitaVoice provides rapid, explainable health screenings for researchers and clinical enthusiasts.
+By combining **clinical acoustic digital signal processing** with **modern transformer-based deep speech representation models (WavLM Base)** and **Vision CNNs (ResNet18)**, VitaVoice provides rapid, multi-modal explainable health screenings for researchers and clinical enthusiasts.
 
 ---
 
@@ -13,6 +13,7 @@ By combining **clinical acoustic digital signal processing** with **modern trans
 
 ## ✨ Key Features
 
+- **Multi-Modal Screening**: Evaluates both acoustic vocal biomarkers and kinematic handwriting tests (spiral and wave drawings).
 - **Interactive Vocal Signal & Feature Analyzer**: Live canvas-less SVG spectrogram visualizer on the home page responding directly to mouse gestures with real-time frequency/amplitude tooltips.
 - **WavLM AI Intelligence Layer**: Bypasses simplistic concatenation by treating WavLM Base embeddings as an independent, multi-modal validation layer:
   - **Voice Fingerprint Similarity**: Calculates cosine and Mahalanobis distances against target clinical cohorts to run $k$-nearest neighbors (KNN) cluster lookups.
