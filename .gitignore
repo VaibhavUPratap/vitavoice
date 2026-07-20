@@ -74,7 +74,4 @@ datasets/handwriting/
 .mypy_cache/
 
 # Handwriting module — trained model artifacts (large binary files)
-backend/handwriting/spiral_model.pth
-backend/handwriting/wave_model.pth
-backend/handwriting/fusion_meta.pkl
-backend/handwriting/training_results.json
+
