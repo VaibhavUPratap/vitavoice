@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { ServerCrash, Cpu, RefreshCw, Mic, Trash2, Sun, Moon } from 'lucide-react';
+import { ServerCrash, Cpu, RefreshCw, Mic, Trash2, Sun, Moon, PenTool } from 'lucide-react';
 import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
 // ─── Handwriting Module (additive) ───────────────────────────────────────────
+// @ts-ignore
 import { Handwriting } from './pages/Handwriting';
+import { Documentation } from './pages/Documentation';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
@@ -82,7 +84,7 @@ function AnalyzingScreen({ stepIndex }: { stepIndex: number }) {
 }
 
 function App() {
-  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history' | 'handwriting'>('landing');
+  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history' | 'handwriting' | 'documentation'>('landing');
   const [historyList, setHistoryList] = useState<any[]>([]);
 
   // ─── Theme ───
@@ -261,7 +263,7 @@ function App() {
             <span className="nav-bar__mark">V</span>
             <span>
               <span className="nav-bar__title">VitaVoice</span>
-              <span className="nav-bar__tag">Vocal Biomarker AI</span>
+              <span className="nav-bar__tag">Multimodal Biomarker AI</span>
             </span>
           </button>
 
@@ -287,9 +289,12 @@ function App() {
               history
             </a>
             <a
-              href="https://github.com"
+              href="#documentation"
               className="nav-bar__link"
-              onClick={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                setScreenState('documentation');
+              }}
             >
               documentation
             </a>
@@ -303,7 +308,7 @@ function App() {
                 setScreenState('handwriting');
               }}
             >
-              handwriting
+              image assessment
             </a>
           </nav>
 
@@ -334,15 +339,25 @@ function App() {
             </button>
 
             {screenState === 'landing' && (
-              <button
-                id="start-assessment-btn"
-                className="btn btn--primary btn--sm"
-                onClick={() => setScreenState('recording')}
-                disabled={!apiOnline}
-              >
-                <Mic style={{ width: 14, height: 14 }} />
-                Start Voice Assessment
-              </button>
+              <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                <button
+                  id="start-assessment-btn"
+                  className="btn btn--primary btn--sm"
+                  onClick={() => setScreenState('recording')}
+                  disabled={!apiOnline}
+                >
+                  <Mic style={{ width: 14, height: 14 }} />
+                  Voice
+                </button>
+                <button
+                  id="start-image-assessment-btn"
+                  className="btn btn--primary btn--sm"
+                  onClick={() => setScreenState('handwriting')}
+                >
+                  <PenTool style={{ width: 14, height: 14 }} />
+                  Image
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -377,25 +392,32 @@ function App() {
           <section className="page-wrap landing">
             <div className="landing__layout">
               <div className="landing__hero reveal">
-                <p className="landing__eyebrow">Hybrid acoustic + neural screening</p>
+                <p className="landing__eyebrow">Multimodal acoustic + visual neural screening</p>
                 <div className="landing__stat-row">
-                  <span className="landing__stat">36</span>
-                  <span className="landing__stat-unit">concatenated features</span>
+                  <span className="landing__stat">360°</span>
+                  <span className="landing__stat-unit">neuro-motor profiling</span>
                 </div>
                 <h1 className="landing__headline">
-                  <em>screen</em> health risks through sustained vowel analysis.
+                  <em>screen</em> health risks through multimodal voice and drawing analysis.
                 </h1>
                 <p className="landing__lede">
-                  VitaVoice leverages a Hybrid Feature Fusion Ensemble architecture. By combining classical acoustic digital signal processing (DSP)—tracking micro-structural properties like vocal jitter and shimmer—with a 768-dimensional deep neural transformer foundation model (WavLM Base), the system yields medical-screening grade screening insights with calibrated, explainable confidence metrics.
+                  VitaVoice leverages advanced hybrid architectures for both audio and visual biomarkers. Our Vocal Assessment combines classical DSP with a 768-dimensional WavLM Base transformer, while our Image Assessment uses ResNet18 convolutional neural networks on Archimedean spirals and wave patterns. Together, they yield comprehensive medical-grade screening insights.
                 </p>
-                <div className="landing__cta-row">
+                <div className="landing__cta-row" style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
                   <button
                     className="btn btn--primary btn--lg"
                     onClick={() => setScreenState('recording')}
                     disabled={!apiOnline}
                   >
                     <Mic style={{ width: 16, height: 16 }} />
-                    Start Voice Assessment
+                    Voice Assessment
+                  </button>
+                  <button
+                    className="btn btn--primary btn--lg"
+                    onClick={() => setScreenState('handwriting')}
+                  >
+                    <PenTool style={{ width: 16, height: 16 }} />
+                    Image Assessment
                   </button>
                   <button
                     id="read-disclaimer-btn"
@@ -425,16 +447,20 @@ function App() {
                 )}
                 <div className="landing__stats-strip">
                   <div className="stat-block">
-                    <p className="stat-block__label">Dataset</p>
-                    <p className="stat-block__value">Oxford Parkinson&apos;s</p>
+                    <p className="stat-block__label">Audio Encoder</p>
+                    <p className="stat-block__value">WavLM Base</p>
                   </div>
                   <div className="stat-block">
-                    <p className="stat-block__label">Classifier</p>
+                    <p className="stat-block__label">Audio Classifier</p>
                     <p className="stat-block__value">SVM Ensemble</p>
                   </div>
                   <div className="stat-block">
-                    <p className="stat-block__label">Encoder</p>
-                    <p className="stat-block__value">WavLM Base</p>
+                    <p className="stat-block__label">Image Encoder</p>
+                    <p className="stat-block__value">ResNet18</p>
+                  </div>
+                  <div className="stat-block">
+                    <p className="stat-block__label">Image Classifier</p>
+                    <p className="stat-block__value">Logistic Reg.</p>
                   </div>
                 </div>
               </div>
@@ -604,6 +630,10 @@ function App() {
         {/* ─── Handwriting Module screen (additive) ─────────────────────────── */}
         {screenState === 'handwriting' && (
           <Handwriting onBack={() => setScreenState('landing')} />
+        )}
+
+        {screenState === 'documentation' && (
+          <Documentation onBack={() => setScreenState('landing')} />
         )}
       </main>
 
