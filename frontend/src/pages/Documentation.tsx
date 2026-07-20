@@ -100,9 +100,12 @@ export function Documentation({ onBack }: { onBack: () => void }) {
                 Technical Reference
               </span>
             </div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', color: 'var(--color-ink)', margin: 0, fontWeight: 400, letterSpacing: '-0.02em' }}>
-              System Documentation
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <img src="/logo.svg" alt="VitaVoice" style={{ width: 36, height: 36, borderRadius: 8 }} />
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', color: 'var(--color-ink)', margin: 0, fontWeight: 400, letterSpacing: '-0.02em' }}>
+                System Documentation
+              </h1>
+            </div>
           </div>
         </div>
 

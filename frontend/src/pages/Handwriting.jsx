@@ -380,17 +380,20 @@ export function Handwriting({ onBack }) {
           >
             Handwriting Analysis Module
           </p>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-xl)',
-              color: 'var(--color-ink)',
-              margin: '0.2em 0 0.4em',
-              fontWeight: 400,
-            }}
-          >
-            drawing biomarker screening
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <img src="/logo.svg" alt="VitaVoice" style={{ width: 32, height: 32, borderRadius: 6 }} />
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-xl)',
+                color: 'var(--color-ink)',
+                margin: '0.2em 0 0.4em',
+                fontWeight: 400,
+              }}
+            >
+              drawing biomarker screening
+            </h1>
+          </div>
           <p style={{ color: 'var(--color-ink-3)', fontSize: 'var(--text-sm)', margin: 0 }}>
             upload a spiral drawing and a wave drawing to run the ResNet18-based Parkinson's screening pipeline.
           </p>

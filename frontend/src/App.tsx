@@ -36,7 +36,10 @@ function AnalyzingScreen({ stepIndex }: { stepIndex: number }) {
 
   return (
     <div className="analyzing reveal is-in">
-      <h3 className="analyzing__title">Acoustic & Neural Diagnostics Engine</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-xs)' }}>
+        <img src="/logo.svg" alt="VitaVoice" style={{ width: 28, height: 28, borderRadius: 6 }} />
+        <h3 className="analyzing__title" style={{ margin: 0 }}>Acoustic & Neural Diagnostics Engine</h3>
+      </div>
       <p className="analyzing__meta">Active Pipeline Execution Protocol</p>
       
       <div className="analyzing__track">
@@ -260,7 +263,7 @@ function App() {
       <header className="nav-bar">
         <div className="page-wrap nav-bar__inner">
           <button className="nav-bar__brand" onClick={handleReset} aria-label="Return to home">
-            <span className="nav-bar__mark">V</span>
+            <img src="/logo.svg" alt="VitaVoice" className="nav-bar__logo" style={{ width: '2.2rem', height: '2.2rem', borderRadius: 'var(--radius-btn)', flexShrink: 0 }} />
             <span>
               <span className="nav-bar__title">VitaVoice</span>
               <span className="nav-bar__tag">Multimodal Biomarker AI</span>
@@ -639,8 +642,11 @@ function App() {
 
       <footer className="foot-dense">
         <div className="foot-dense__inner">
-          <p style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
-            <span>© 2026 vitavoice healthcare technology research group.</span>
+          <p style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2xs)' }}>
+              <img src="/logo.svg" alt="VitaVoice" style={{ width: 18, height: 18, borderRadius: 4 }} />
+              © 2026 vitavoice healthcare technology research group.
+            </span>
             <a
               href="#disclaimer"
               onClick={(e) => {
