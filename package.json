@@ -5,12 +5,12 @@
   "description": "VitaVoice root workspace orchestrator",
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
-    "dev:backend": "backend/venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001",
+    "dev:backend": "venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001",
     "dev": "npx concurrently -k -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "npm run build --prefix frontend",
-    "start": "backend/venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001",
-    "test:backend": "backend/venv/bin/pytest tests/",
-    "test:frontend": "backend/venv/bin/python tests/test_frontend.py && backend/venv/bin/python tests/test_results_page.py"
+    "start": "venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001",
+    "test:backend": "venv/bin/pytest tests/",
+    "test:frontend": "venv/bin/python tests/test_frontend.py && venv/bin/python tests/test_results_page.py"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -96,12 +96,14 @@ def _classify_parkinsons_drawings_file(
     stem = filepath.stem.upper()
     # PD files: V{id}PE{seq} or V{id}PO{seq}
     # Healthy:  V{id}HE{seq} or V{id}HO{seq}
-    m = re.match(r"V(\d+)[A-Z]([EO])", stem)
+    m = re.match(r"V(\d+)([A-Z])([EO])", stem)
     if m:
         subject_id = m.group(1).zfill(3)
-        char = m.group(2)
+        code_char = m.group(2)
+        char = m.group(3)
         dtype = "spiral" if char == "E" else "wave"
-        return dtype, label, f"PD_{subject_id}"
+        prefix = "PD" if code_char == "P" else "H"
+        return dtype, label, f"{prefix}_{subject_id}"
     # Fallback: try HE/HO pattern with single-digit seq (V03HE1)
     m2 = re.match(r"V(\d+)([A-Z]{2})\d", stem)
     if m2:
