@@ -105,7 +105,7 @@ def _build_resnet18_shell(device: torch.device) -> nn.Module:
 def _load_models():
     global _spiral_model, _wave_model, _meta_model, _device
 
-    if _spiral_model is not None:
+    if _spiral_model is not None and _wave_model is not None and _meta_model is not None:
         return  # Already loaded
 
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -128,13 +128,13 @@ def _load_models():
 
     _spiral_model = _build_resnet18_shell(_device)
     _spiral_model.load_state_dict(
-        torch.load(SPIRAL_MODEL_PATH, map_location=_device, weights_only=True)
+        torch.load(SPIRAL_MODEL_PATH, map_location=_device, weights_only=False)
     )
     _spiral_model.eval()
 
     _wave_model = _build_resnet18_shell(_device)
     _wave_model.load_state_dict(
-        torch.load(WAVE_MODEL_PATH, map_location=_device, weights_only=True)
+        torch.load(WAVE_MODEL_PATH, map_location=_device, weights_only=False)
     )
     _wave_model.eval()
 
