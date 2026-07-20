@@ -1,9 +1,9 @@
 # Responsible AI & Clinical Limitations
 
 ## 1. Intended Use and Scope
-**VitaVoice is an AI-assisted voice pathology screening aid, not a diagnostic system.**
+**VitaVoice is an AI-assisted health screening aid, not a diagnostic system.**
 
-It is designed to analyze vocal dysphonia (vocal instability) from sustained vowel phonation samples. It serves as a rapid, low-cost, and non-invasive **pre-clinical screening tool** to identify voice biomarkers associated with chronic conditions (such as Parkinson's disease). 
+It is designed to analyze vocal dysphonia (vocal instability) from sustained vowel phonation samples, as well as kinematic tremors through handwriting tests. It serves as a rapid, low-cost, and non-invasive **pre-clinical screening tool** to identify biomarkers associated with chronic conditions (such as Parkinson's disease). 
 
 ### What it is:
 * An educational and research demonstration.
@@ -52,6 +52,7 @@ VitaVoice prioritizes explainable AI by mapping model predictions directly to ph
 | **Amplitude Shimmer** | Vocal fold vibration loudness instability | Elevated. Reduced subglottal pressure control makes it difficult to maintain a steady vocal volume. |
 | **HNR (Harmonics-to-Noise)** | Completeness of vocal fold closure | Lowered. Incomplete closure leads to turbulent air leakage, causing a breathy, hoarse, or noisy voice. |
 | **MFCCs** | Shape of the vocal tract filter | Altered. Reduced movement range of the tongue, lips, and jaw changes the spectral envelope shape. |
+| **Kinematic Tremor** | Pen tracking during spiral/wave drawing | Elevated. Micrographia and intention tremors affect fluid drawing paths. |
 
 ---
 

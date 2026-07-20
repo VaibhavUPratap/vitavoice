@@ -6,69 +6,45 @@ This document outlines the technical architecture, data processing pipelines, an
 
 ## 1. System Overview
 
-VitaVoice is split into an enterprise-grade **FastAPI Backend** and a modern **React SPA Frontend (Vite + TypeScript)**. 
+VitaVoice is split into an enterprise-grade **FastAPI Backend** and a modern **React SPA Frontend (Vite + TypeScript)**. It features two primary screening modalities: Vocal Biomarker Analysis and Kinematic Handwriting Analysis.
 
 ### Core System Architecture
 
-```mermaid
-graph TD
-    User([User Node]) -->|Microphone / Web Audio| FE[React Frontend]
-    FE -->|HTTP POST WAV + patient_id /api/v1/screen| BE[FastAPI Backend]
-    
-    subgraph FastAPI Backend App
-        BE -->|1. Rate Limit Middleware| RL{Allowed?}
-        RL -->|No| R_429[JSON Response 429]
-        RL -->|Yes| VAL[2. Size & Format Validation]
-        
-        VAL -->|Valid| INF[3. Pipeline Engine]
-        
-        subgraph Pipeline Engine
-            INF -->|3.1 Preprocessing| PP[Audio Preprocessing Pipeline]
-            PP -->|Clean 16kHz WAV| FE_EXT[3.2 Feature Extraction]
-            
-            FE_EXT -->|Acoustic Biomarkers| F_CLI[Clinical Feature Set]
-            FE_EXT -->|Speech Foundation Model| F_EMB[WavLM Base Embeddings]
-            
-            F_CLI -->|3.3 Scaling| SCALED[Scaled Clinical Feature Map]
-            SCALED -->|3.4 Classifier Model| CLF[Calibrated SVM Classifier]
-            
-            F_EMB -->|3.3 PCA 2D| PCA_PROJ[PCA Projection Coordinates]
-            
-            CLF -->|Prediction & Status| OUT[Classification Results]
-            CLF -->|Kernel SHAP| SHAP[Feature Contribution Map]
-            
-            F_EMB -->|3.5 WavLM AI Intelligence Layer| W_VFY[WavLM Audits Engine]
-            
-            subgraph WavLM Audits Engine
-                W_VFY -->|Spoof Check| AUTH[Recording Authenticity Auditor]
-                W_VFY -->|Anomaly Check| OOD[One-Class SVM OOD Detector]
-                W_VFY -->|Cohort Check| SIM[Fingerprint Similarity Engine]
-                W_VFY -->|Signal Check| QA[Neural Quality Auditor]
-                
-                AUTH & OOD & SIM & QA -->|Trust Metric| TRUST[Confidence / Trust Auditor]
-            end
-        end
-        
-        OUT & SHAP & TRUST -->|4. Clinical Decision Engine| CDE{CDE Logic Gates}
-        
-        CDE -->|Logical Override / Override Status| OVERRIDE[Overridden Risk & Status]
-        
-        OVERRIDE -->|5. SQLite Patient Timeline| DB_SERV[Patient DB Service]
-        DB_SERV -->|Read Baseline & History| DRIFT[Drift & Timeline Coordinates]
-        
-        DRIFT & OVERRIDE -->|6. Response Enrichment| ENRICH[Response Enrichment Module]
-        ENRICH -->|Enriched Data & Metrics| REP[7. Enriched Health Report]
-        REP -->|8. PDF Generation| PDF[3-page ReportLab Document Builder]
-    end
-    
-    PDF -->|Save PDF| STR[Reports Static Directory]
-    STR -->|Static PDF Link /api/v1/reports| FE
-    PCA_PROJ -->|2D Coordinates & Drift Path| FE
-    
-    subgraph Background Processes
-        BG[Async File Cleanup Job] -.->|Every 10 min: Delete files > 1hr old| STR
-    end
-```
+### Core System Flow
+
+**1. Client Interaction (React Frontend)**
+- User initiates recording via `Microphone / Web Audio API`.
+- Frontend performs client-side acoustic calibration.
+- **Action**: `HTTP POST WAV` sent to `/api/v1/screen`.
+
+**2. Ingress & Validation (FastAPI Backend)**
+- **Rate Limit Middleware**: Rejects if too many requests (Returns 429).
+- **Validation**: Checks payload size and audio format constraints.
+
+**3. Pipeline Engine**
+- **3.1 Preprocessing**: Cleans the 16kHz WAV file (noise gating, normalization).
+- **3.2 Feature Extraction**: Splits into two tracks:
+  - *Track A (DSP)*: Extracts Classical Acoustic Biomarkers $\rightarrow$ Clinical Feature Set.
+  - *Track B (Neural)*: Generates Speech Foundation Embeddings (WavLM Base).
+- **3.3 Scaling & Classification**:
+  - Scales Clinical Features $\rightarrow$ Passes to Calibrated SVM Classifier.
+  - Generates Classification Results & Kernel SHAP Contribution Maps.
+- **3.4 AI Intelligence Layer**:
+  - Validates WavLM embeddings via Spoof Check, Anomaly Check, Cohort Similarity, and Signal Quality.
+  - Generates a holistic Confidence / Trust Metric.
+
+**4. Clinical Decision Engine (CDE)**
+- Fuses Classification Results, SHAP maps, and the Trust Metric.
+- Applies hard logic gates (e.g., if spoof detected $\rightarrow$ Override Status).
+
+**5. Database & Trajectory**
+- **SQLite Patient Timeline**: Saves the event.
+- **Drift Calculation**: Reads baseline history to compute trajectory vectors.
+
+**6. Output & Reporting**
+- **Response Enrichment**: Combines drift and override data.
+- **Report Generation**: Builds a 3-page PDF via ReportLab.
+- **Action**: Returns Enriched JSON & static PDF link to the Frontend.
 
 ---
 
@@ -124,7 +100,16 @@ The backend integrates an enterprise SQLite patient service to track longitudina
 
 ---
 
-## 5. Response Enrichment & Clinical Reports
+## 5. Handwriting Kinematics Pipeline
+
+For handwriting analysis, the frontend canvas captures user-drawn spiral and wave patterns, exporting them as base64 images. The backend (`/api/v1/handwriting/predict` or similar) processes these through a dual-CNN pipeline:
+- **Image Preprocessing**: Grayscale conversion, resizing to 224x224, and ImageNet normalization.
+- **Dual ResNet18 Models**: Two separate ResNet18 CNNs (with fine-tuned layer 4 and custom classification heads) analyze the spiral and wave drawings independently.
+- **Fusion Meta-Model**: A Logistic Regression meta-model fuses the scalar probability outputs from the two CNNs to yield a final confidence score for Parkinson's risk.
+
+---
+
+## 6. Response Enrichment & Clinical Reports
 
 Once the CDE gates and DB timeline operations are complete, the **Response Enrichment Module** compiles annotations:
 - **Certainty Calibration**: Translates raw risk margins into confidence labels ("Very High", "High", "Moderate", "Low") and prediction reliability ratings.
@@ -132,7 +117,7 @@ Once the CDE gates and DB timeline operations are complete, the **Response Enric
 - **Responsible AI Guardrails**: Adds explicit disclaimers regarding pre-clinical screening boundaries.
 - **PDF Report Generation**: Invokes a custom ReportLab builder to compile a 3-page clinical-grade report containing the patient timeline trend, acoustic quality verification table, SHAP attributions, recommendations, and baseline drift.
 
-## 5. Clinical Copilot & Fallback Architecture
+## 7. Clinical Copilot & Fallback Architecture
 
 To support clinicians with deeper diagnostic context, the backend defines a modular **Clinical Copilot** sub-system via analysis router hooks (`/api/v1/analysis`):
 - **Clinical Copilot Insights (`/api/v1/analysis/copilot-insight`)**: Processes voice recording IDs to serve LLM-ready context. The baseline fallback engine provides structured rule-based summaries derived from acoustic DSP measurements. The interface is pre-built to support future Retrieval-Augmented Generation (RAG) by integrating ChromaDB vector stores and external LLM APIs (e.g., OpenAI, Ollama).
@@ -140,7 +125,7 @@ To support clinicians with deeper diagnostic context, the backend defines a modu
 
 ---
 
-## 6. Frontend Component Architecture
+## 8. Frontend Component Architecture
 
 The React frontend handles real-time audio visualization, environment calibration, and results dashboards:
 

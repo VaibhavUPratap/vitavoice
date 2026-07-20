@@ -42,19 +42,30 @@ The dataset provides 22 continuous acoustic features extracted from the voice re
 | `Spectral_Centroid` | Mean frequency of the spectrum | Hertz (Hz) | Variable |
 | `Spectral_Bandwidth` | Width of the spectrum | Hertz (Hz) | Variable |
 | `Zero_Crossing_Rate` | Rate of sign changes in the signal | Hz / frame | Variable |
-| `MFCC_1` to `MFCC_13` | Mel-frequency cepstral coefficients (vocal tract shape) | Power | Variable |
-| `Chroma_1` to `Chroma_12` | 12-semitone pitch profile of the vocalization | Energy | Variable |
+| `MFCC_1 to MFCC_13` | Mel-frequency cepstral coefficients (vocal tract shape) | Power | Variable |
+| `Chroma_1 to Chroma_12` | 12-semitone pitch profile of the vocalization | Energy | Variable |
 
 ---
 
-## 2. Model Target Vector
+## 2. Secondary Datasets: Handwriting Kinematics
+
+VitaVoice integrates three handwriting datasets to train its ResNet18 Kinematics models:
+1. **ParkinsonsDrawings**: Spiral and wave drawings from Parkinson's and healthy patients.
+2. **HandPD**: Additional images of spiral and wave tests.
+3. **NewHandPD**: Further spiral and wave samples.
+
+All images are normalized and augmented (rotation, translation) before being passed through the ImageNet-pre-trained vision models.
+
+---
+
+## 3. Model Target Vector
 - **Target Variable**: `status`
   - `0`: Healthy Control (normal vocal stability)
   - `1`: Parkinson's Patient (indicates presence of laryngeal tremors or vocal tremor)
 
 ---
 
-## 3. Separation of Prototype Demo Data
+## 4. Separation of Prototype Demo Data
 
 To support testing and local development without requiring clinical dataset downloads, VitaVoice separates data layers:
 1. **Clinical Data**: Raw patient recordings are kept in `datasets/raw/`. The loader parses files using a standard structure.

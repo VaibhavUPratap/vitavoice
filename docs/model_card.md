@@ -6,8 +6,10 @@ This model card details the model architecture, training configuration, performa
 
 ## Model Details
 
-- **Model Name**: VitaVoice-DecoupledEnsemble-v3
-- **Model Type**: Hybrid Acoustic SVM Classifier + WavLM Base Neural Clinical Verification Layer
+- **Model Name**: VitaVoice-DecoupledEnsemble-v3 (Acoustic) & VitaVoice-HandwritingCNN (Kinematic)
+- **Model Type**: 
+  - *Acoustic*: Hybrid Acoustic SVM Classifier + WavLM Base Neural Clinical Verification Layer
+  - *Kinematic*: Dual ResNet18 Convolutional Neural Networks + Logistic Regression Fusion Meta-Model
 - **Acoustic Classifier**: Calibrated Support Vector Machine (RBF Kernel, $C=1.0$, gamma='scale')
 - **Neural Speech Encoder**: `microsoft/wavlm-base` (Mean-pooled hidden state embeddings, 768-dimensions)
 - **Anomaly Classifier**: One-Class SVM (RBF Kernel, $\nu=0.1$, gamma='scale') for Out-of-Distribution checking
@@ -28,6 +30,7 @@ This model card details the model architecture, training configuration, performa
 ## Training Data & Cohort Baselines
 
 - **Primary Acoustic Dataset**: Oxford Parkinson's Disease Laryngeal Dataset (Little et al., 2008). 195 sustained `/a/` vowel phonations (23 Parkinson's, 8 healthy).
+- **Handwriting Datasets**: ParkinsonsDrawings, HandPD, and NewHandPD datasets containing spiral and wave images from PD and healthy subjects.
 - **WavLM Latent Cohort Anchors**: Mean-pooled speaker vectors extracted from clean, noise-controlled phonations representing:
   - Healthy Control Centroid: Target baseline for vocal stability.
   - Parkinson's Cohort Centroid: Target baseline for micro-tremor dysphonia.
@@ -44,6 +47,9 @@ The architecture splits acoustic perturbation features from deep neural represen
    - **OOD Detection**: One-Class SVM distance score mapping.
    - **Fingerprint Similarity**: Cosine and Mahalanobis distance vector calculations against cohort anchors.
    - **PCA Latent Coordinates**: Pre-trained PCA component projecting 768-D vectors to 2D space for visual drift tracking.
+3. **Handwriting Kinematics**:
+   - ResNet18 image feature extraction of spiral and wave drawing inputs.
+   - Meta-model fusion via Logistic Regression for combined risk scores.
 
 ---
 
