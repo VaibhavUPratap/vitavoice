@@ -3,6 +3,8 @@ import { ServerCrash, Cpu, RefreshCw, Mic, Trash2, Sun, Moon } from 'lucide-reac
 import { AudioRecorder } from './components/AudioRecorder';
 import { Dashboard } from './components/Dashboard';
 import { LandingVisual } from './components/LandingVisual';
+// ─── Handwriting Module (additive) ───────────────────────────────────────────
+import { Handwriting } from './pages/Handwriting';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
@@ -80,7 +82,7 @@ function AnalyzingScreen({ stepIndex }: { stepIndex: number }) {
 }
 
 function App() {
-  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history'>('landing');
+  const [screenState, setScreenState] = useState<'landing' | 'recording' | 'analyzing' | 'results' | 'disclaimer' | 'history' | 'handwriting'>('landing');
   const [historyList, setHistoryList] = useState<any[]>([]);
 
   // ─── Theme ───
@@ -290,6 +292,18 @@ function App() {
               onClick={(e) => e.preventDefault()}
             >
               documentation
+            </a>
+            {/* ─── Handwriting nav link (additive) ─── */}
+            <a
+              href="#handwriting"
+              id="nav-handwriting-link"
+              className="nav-bar__link"
+              onClick={(e) => {
+                e.preventDefault();
+                setScreenState('handwriting');
+              }}
+            >
+              handwriting
             </a>
           </nav>
 
@@ -585,6 +599,11 @@ function App() {
               </section>
             </article>
           </div>
+        )}
+
+        {/* ─── Handwriting Module screen (additive) ─────────────────────────── */}
+        {screenState === 'handwriting' && (
+          <Handwriting onBack={() => setScreenState('landing')} />
         )}
       </main>
 

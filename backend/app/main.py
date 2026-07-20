@@ -504,3 +504,33 @@ if os.path.exists(frontend_dir):
             return FileResponse(index_path)
         raise HTTPException(status_code=404, detail="Index Not Found")
 
+
+# ─── Handwriting Module ────────────────────────────────────────────────────────
+# Additive only — does not modify any existing route, import, or configuration.
+
+from handwriting.predict import predict_handwriting  # noqa: E402
+
+@app.post("/predict/handwriting")
+async def handwriting_endpoint(
+    spiral_file: UploadFile = File(...),
+    wave_file:   UploadFile = File(...),
+):
+    """
+    Accepts a spiral drawing and a wave drawing, runs the handwriting
+    Parkinson's screening pipeline, and returns a combined probability score.
+
+    Returns
+    -------
+    handwriting_score : float
+        Combined probability in [0, 1]. Higher = greater PD likelihood.
+    """
+    try:
+        score = await predict_handwriting(spiral_file, wave_file)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Handwriting models not yet trained. Run backend/handwriting/train.py first. ({exc})"
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Prediction error: {exc}")
+    return {"handwriting_score": score}
